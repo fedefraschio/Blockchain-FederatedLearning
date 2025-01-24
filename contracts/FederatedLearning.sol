@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: MIT
 
 // pragma solidity ^0.6.6;
-pragma solidity ^0.6.0;
+pragma solidity ^0.8.28;
 pragma experimental ABIEncoderV2;
 
-import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
-import "@chainlink/contracts/src/v0.6/vendor/SafeMathChainlink.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+//import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
+//import "@chainlink/contracts/src/v0.6/vendor/SafeMathChainlink.sol";
+import "./chainlink/AggregatorV3Interface.sol";
+// import "@openzeppelin/contracts/access/Ownable.sol";
+// Import OpenZeppelin's AccessControl contract
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract FederatedLearning is Ownable {
-    using SafeMathChainlink for uint256;
+contract FederatedLearning is AccessControl {
+    //using SafeMathChainlink for uint256; // l'overflow e l'underflow aritmetico sono gestiti automaticamente
+    //bytes32 public constant DEFAULT_ADMIN_ROLE; // contract creator // NEW
+    bytes32 public constant AGGREGATOR_ROLE = keccak256("AGGREGATOR_ROLE"); // NEW
     enum FL_STATE {
         CLOSE,
         OPEN,
@@ -18,11 +23,13 @@ contract FederatedLearning is Ownable {
     }
     FL_STATE public fl_state;
     address[] public collaborators;
+    address public aggregator; // NEW
     bytes public model;
     bytes public compile_info;
     bytes public aggregated_weights;
     mapping(address => bytes) public weights;
     uint256 public weights_len;
+    uint256 public roundTimeout; // NEW
 
     mapping(address => mapping(string => bool)) public hasCalledFunction;
     mapping(string => uint) public everyoneHasCalled;
@@ -32,16 +39,29 @@ contract FederatedLearning is Ownable {
     event CloseState();
     event EveryCollaboratorHasCalledOnlyOnce(string functionName);
     event AggregatedWeightsReady();
-
+    event RoundProceeded(); // NEW
+    event TimeoutReported(address reporter); // NEW
+    
     constructor() public {
         fl_state = FL_STATE.CLOSE;
+        grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     modifier onlyAuthorized() {
         require(isAuthorized(msg.sender), "Unauthorized user");
         _;
     }
-
+    
+    modifier onlyAggregator() {
+        require(isAggregator(msg.sender), "Non-aggregator user");
+        _;
+    }
+  
+  /*modifier onlyRole(bytes32 role) {
+        require(hasRole(role, msg.sender));
+        _;
+    }*/
+    
     modifier everyCollaboratorHasCalledOnce(string memory functionName) {
         require(
             !hasCalledFunction[msg.sender][functionName],
@@ -56,9 +76,9 @@ contract FederatedLearning is Ownable {
 
         _;
     }
-
+    
     function isAuthorized(address _user) public view returns (bool) {
-        if (owner() == _user) {
+        if (hasRole(DEFAULT_ADMIN_ROLE, _user)) {
             return true;
         }
         for (uint i = 0; i < collaborators.length; i++) {
@@ -69,27 +89,37 @@ contract FederatedLearning is Ownable {
         return false;
     }
 
-    function open() public onlyOwner {
+    function isAggregator(address _user) public view returns (bool) {
+        if (hasRole(DEFAULT_ADMIN_ROLE, _user)) {
+            return true;
+        }
+        if (aggregator == _user) {
+                return true;
+        }
+        return false;
+    }
+
+    function open() public onlyRole(DEFAULT_ADMIN_ROLE) {
         require(fl_state == FL_STATE.CLOSE);
         fl_state = FL_STATE.OPEN;
     }
 
-    function add_collaborator(address _collaborator) public onlyOwner {
+    function add_collaborator(address _collaborator) public onlyRole(DEFAULT_ADMIN_ROLE) {
         require(fl_state == FL_STATE.OPEN);
         collaborators.push(_collaborator);
     }
 
-    function send_model(bytes memory _model) public onlyOwner {
+    function send_model(bytes memory _model) public onlyRole(DEFAULT_ADMIN_ROLE) {
         require(fl_state == FL_STATE.OPEN);
         model = _model;
     }
 
-    function send_compile_info(bytes memory _compile_info) public onlyOwner {
+    function send_compile_info(bytes memory _compile_info) public onlyRole(DEFAULT_ADMIN_ROLE) {
         require(fl_state == FL_STATE.OPEN);
         compile_info = _compile_info;
     }
 
-    function start() public onlyOwner {
+    function start() public onlyRole(DEFAULT_ADMIN_ROLE) {
         require(fl_state == FL_STATE.OPEN);
         fl_state = FL_STATE.START;
         emit StartState();
@@ -115,7 +145,7 @@ contract FederatedLearning is Ownable {
         return compile_info;
     }
 
-    function learning() public onlyOwner {
+    function learning() public onlyAggregator {
         require(fl_state == FL_STATE.START);
         fl_state = FL_STATE.LEARNING;
         emit LearningState();
@@ -132,12 +162,12 @@ contract FederatedLearning is Ownable {
 
     function retrieve_weights(
         address _collaborator
-    ) public view onlyOwner returns (bytes memory) {
+    ) public view onlyAggregator returns (bytes memory) {
         require(fl_state == FL_STATE.LEARNING);
         return weights[_collaborator];
     }
 
-    function reset_weights() public onlyOwner {
+    function reset_weights() public onlyAggregator {
         for (uint256 i = 0; i < collaborators.length; i++) {
             address collaborator = collaborators[i];
             delete hasCalledFunction[collaborator]["send_weights"];
@@ -145,7 +175,7 @@ contract FederatedLearning is Ownable {
         delete everyoneHasCalled["send_weights"];
     }
 
-    function send_aggregated_weights(bytes memory _weights) public onlyOwner {
+    function send_aggregated_weights(bytes memory _weights) public onlyAggregator {
         require(fl_state == FL_STATE.LEARNING);
         aggregated_weights = _weights;
         weights_len = 0;
@@ -166,7 +196,7 @@ contract FederatedLearning is Ownable {
         return aggregated_weights;
     }
 
-    function reset_aggregated_weights() public onlyOwner {
+    function reset_aggregated_weights() public onlyAggregator {
         for (uint256 i = 0; i < collaborators.length; i++) {
             address collaborator = collaborators[i];
             delete hasCalledFunction[collaborator][
@@ -176,7 +206,7 @@ contract FederatedLearning is Ownable {
         delete everyoneHasCalled["retrieve_aggregated_weights"];
     }
 
-    function close() public onlyOwner {
+    function close() public onlyRole(DEFAULT_ADMIN_ROLE) {
         fl_state = FL_STATE.CLOSE;
         emit CloseState();
     }
