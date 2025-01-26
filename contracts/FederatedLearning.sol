@@ -44,7 +44,7 @@ contract FederatedLearning is AccessControl {
     
     constructor() public {
         fl_state = FL_STATE.CLOSE;
-        grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     modifier onlyAuthorized() {
@@ -56,11 +56,6 @@ contract FederatedLearning is AccessControl {
         require(isAggregator(msg.sender), "Non-aggregator user");
         _;
     }
-  
-  /*modifier onlyRole(bytes32 role) {
-        require(hasRole(role, msg.sender));
-        _;
-    }*/
     
     modifier everyCollaboratorHasCalledOnce(string memory functionName) {
         require(

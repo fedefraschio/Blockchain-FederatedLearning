@@ -13,6 +13,7 @@ def get_account():
         network.show_active() in LOCAL_BLOCKCHAIN_ENVIRONMENTS
         or network.show_active() in FORKED_LOCAL_ENVIRONMENTS
     ):
+        print("account admin: ", accounts[0]) # DEBUG
         return accounts[0]
     else:
         return accounts.add(config["wallets"]["from_key"])
@@ -43,7 +44,8 @@ def deploy_federated_learning(gas_cons_setup):
     else:
         gas_used = deploy_mocks()
         price_feed_address = MockV3Aggregator[-1].address
-
+    
+    # print(type(FederatedLearning)) #DEBUG
     federated_learning = FederatedLearning.deploy(
         {"from": account},
         publish_source=config["networks"][network.show_active()].get("verify"),
