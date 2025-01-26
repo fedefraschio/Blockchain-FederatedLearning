@@ -59,7 +59,7 @@ with open('devices_out_of_battery.pkl', 'wb') as file:
     # Use pickle.dump to save the list to the file
     pickle.dump(DEVICES_OUT_OF_BATTERY, file)
 
-# dict for collaborator fee
+# dictionary for collaborator fee
 gas_fee_collab = {hospital_name: {'retrieve_fee': [], 'send_fee': [], 'model_start_fee': 0} for hospital_name in
                   hospitals}
 
