@@ -44,10 +44,18 @@ def deploy_federated_learning(gas_cons_setup):
         gas_used = deploy_mocks()
         price_feed_address = MockV3Aggregator[-1].address
 
+    # Define the constructor parameters (_roundTimeout and _timeoutReportThreshold)
+    round_timeout = 3600  # Example value, set it as required
+    timeout_report_threshold = 3  # Example value, set it as required
+
+    # Deploy the FederatedLearning contract with constructor parameters
     federated_learning = FederatedLearning.deploy(
+        round_timeout,  # _roundTimeout
+        timeout_report_threshold,  # _timeoutReportThreshold
         {"from": account},
         publish_source=config["networks"][network.show_active()].get("verify"),
     )
+
     print(f"Contract deployed to {federated_learning.address}")
     gas_cons_setup['deploy_mocks_fee'] = gas_used + federated_learning.tx.gas_used
     return federated_learning

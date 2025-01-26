@@ -1,53 +1,84 @@
 // SPDX-License-Identifier: MIT
 
-// pragma solidity ^0.6.6;
-pragma solidity ^0.6.0;
+pragma solidity ^0.8.28;
 pragma experimental ABIEncoderV2;
 
-import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
-import "@chainlink/contracts/src/v0.6/vendor/SafeMathChainlink.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "./chainlink/AggregatorV3Interface.sol";
+// Import OpenZeppelin's AccessControl contract
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract FederatedLearning is Ownable {
-    using SafeMathChainlink for uint256;
+contract FederatedLearning is AccessControl {
+    //using SafeMathChainlink for uint256; // l'overflow e l'underflow aritmetico sono gestiti automaticamente
+    // Define a constant role for the aggregator
+    bytes32 public constant AGGREGATOR_ROLE = keccak256("AGGREGATOR_ROLE"); // NEW
+    
+    // Enumeration of federated learning states
     enum FL_STATE {
         CLOSE,
         OPEN,
         START,
         LEARNING
     }
-    FL_STATE public fl_state;
-    address[] public collaborators;
-    bytes public model;
-    bytes public compile_info;
-    bytes public aggregated_weights;
-    mapping(address => bytes) public weights;
-    uint256 public weights_len;
 
-    mapping(address => mapping(string => bool)) public hasCalledFunction;
-    mapping(string => uint) public everyoneHasCalled;
+    // State variables
+    FL_STATE public fl_state;              // Current state of the federated learning system
+    address[] public collaborators;        // List of approved collaborators
+    address public aggregator;             // Address of the aggregator
+    bytes public model;                    // Serialized model data
+    bytes public compile_info;             // Metadata about the model
+    bytes public aggregated_weights;       // Aggregated weights after learning
 
+    mapping(address => bytes) public weights;          // Stores individual collaborator weights
+    uint256 public weights_len;                        // Count of submitted weights
+    uint256 public roundTimeout;                       // Timeout for each learning round
+    uint256 private lastElectedIndex = 0;              // Tracks the last elected collaborator's index
+
+    mapping(address => mapping(string => bool)) public hasCalledFunction; // Tracks if a collaborator has called a specific function
+    mapping(string => uint) public everyoneHasCalled;  // Tracks how many collaborators have called a specific function
+
+    // Timeout-related variables
+    mapping(address => bool) public hasReportedTimeout; // Tracks timeout reports per collaborator
+    uint256 public timeoutReportCount;                  // Number of timeout reports received
+    uint256 public timeoutReportThreshold;              // Threshold of timeout reports required to take action
+    uint256 public roundStartTime;                      // Timestamp when the current round started
+
+    // Events to notify system state changes and actions
     event StartState();
     event LearningState();
     event CloseState();
     event EveryCollaboratorHasCalledOnlyOnce(string functionName);
     event AggregatedWeightsReady();
+    event RoundProceeded(); // NEW
+    event TimeoutReported(address reporter); // NEW
+    event NewAggregatorElected(address aggregator); // NEW
 
-    constructor() public {
-        fl_state = FL_STATE.CLOSE;
+    // Constructor to initialize the contract
+    constructor(uint256 _roundTimeout, uint256 _timeoutReportThreshold) {
+        fl_state = FL_STATE.CLOSE; // Set initial state to CLOSE
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender); // Set admin role to th\e contract deployer
+        roundTimeout = _roundTimeout; // Set the round timeout duration
+        timeoutReportThreshold = _timeoutReportThreshold; // Set the threshold for timeout reports
     }
 
+    // Modifier to restrict access to authorized users
     modifier onlyAuthorized() {
         require(isAuthorized(msg.sender), "Unauthorized user");
         _;
     }
-
+    
+    // Modifier to restrict access to the aggregator
+    modifier onlyAggregator() {
+        require(isAggregator(msg.sender), "Non-aggregator user");
+        _;
+    }
+    
+    // Modifier to ensure each collaborator calls the function only once
     modifier everyCollaboratorHasCalledOnce(string memory functionName) {
         require(
             !hasCalledFunction[msg.sender][functionName],
             "This function can only be called only once per collaborator"
         );
-        hasCalledFunction[msg.sender][functionName] = true;
+        hasCalledFunction[msg.sender][functionName] = true; // Mark the function as called for this collaborator
 
         everyoneHasCalled[functionName]++;
         if (everyoneHasCalled[functionName] == collaborators.length) {
@@ -56,9 +87,10 @@ contract FederatedLearning is Ownable {
 
         _;
     }
-
+    
+    // Function to check if a user is authorized
     function isAuthorized(address _user) public view returns (bool) {
-        if (owner() == _user) {
+        if (hasRole(DEFAULT_ADMIN_ROLE, _user)) {
             return true;
         }
         for (uint i = 0; i < collaborators.length; i++) {
@@ -69,32 +101,49 @@ contract FederatedLearning is Ownable {
         return false;
     }
 
-    function open() public onlyOwner {
+    // Function to check if a user is the aggregator
+    function isAggregator(address _user) public view returns (bool) {
+        if (hasRole(DEFAULT_ADMIN_ROLE, _user)) {
+            return true;
+        }
+        if (aggregator == _user) {
+                return true;
+        }
+        return false;
+    }
+
+    // Open the system for collaborators
+    function open() public onlyRole(DEFAULT_ADMIN_ROLE) {
         require(fl_state == FL_STATE.CLOSE);
         fl_state = FL_STATE.OPEN;
     }
 
-    function add_collaborator(address _collaborator) public onlyOwner {
+    // Add a new collaborator
+    function add_collaborator(address _collaborator) public onlyRole(DEFAULT_ADMIN_ROLE) {
         require(fl_state == FL_STATE.OPEN);
         collaborators.push(_collaborator);
     }
 
-    function send_model(bytes memory _model) public onlyOwner {
+    // Set the initial model
+    function send_model(bytes memory _model) public onlyRole(DEFAULT_ADMIN_ROLE) {
         require(fl_state == FL_STATE.OPEN);
         model = _model;
     }
 
-    function send_compile_info(bytes memory _compile_info) public onlyOwner {
+    // Provide compilation metadata
+    function send_compile_info(bytes memory _compile_info) public onlyRole(DEFAULT_ADMIN_ROLE) {
         require(fl_state == FL_STATE.OPEN);
         compile_info = _compile_info;
     }
 
-    function start() public onlyOwner {
+    // Transition to the START state
+    function start() public onlyRole(DEFAULT_ADMIN_ROLE) {
         require(fl_state == FL_STATE.OPEN);
         fl_state = FL_STATE.START;
         emit StartState();
     }
 
+    // Retrieve the model
     function retrieve_model()
         public
         onlyAuthorized
@@ -105,6 +154,7 @@ contract FederatedLearning is Ownable {
         return model;
     }
 
+    // Function to retrieve compilation information
     function retrieve_compile_info()
         public
         onlyAuthorized
@@ -115,12 +165,14 @@ contract FederatedLearning is Ownable {
         return compile_info;
     }
 
-    function learning() public onlyOwner {
-        require(fl_state == FL_STATE.START);
+    // Function to transition to the LEARNING state
+    function learning() public onlyAggregator {
+        require(fl_state == FL_STATE.START, "Not in START state");
         fl_state = FL_STATE.LEARNING;
         emit LearningState();
     }
 
+    // Function for collaborators to send their weights
     function send_weights(
         bytes memory _weights
     ) public onlyAuthorized everyCollaboratorHasCalledOnce("send_weights") {
@@ -130,14 +182,16 @@ contract FederatedLearning is Ownable {
         weights[msg.sender] = _weights;
     }
 
+    // Function to retrieve the weights submitted by a specific collaborator
     function retrieve_weights(
         address _collaborator
-    ) public view onlyOwner returns (bytes memory) {
+    ) public view onlyAggregator returns (bytes memory) {
         require(fl_state == FL_STATE.LEARNING);
         return weights[_collaborator];
     }
 
-    function reset_weights() public onlyOwner {
+    // Function to reset weights for a new learning round
+    function reset_weights() public onlyAggregator {
         for (uint256 i = 0; i < collaborators.length; i++) {
             address collaborator = collaborators[i];
             delete hasCalledFunction[collaborator]["send_weights"];
@@ -145,7 +199,8 @@ contract FederatedLearning is Ownable {
         delete everyoneHasCalled["send_weights"];
     }
 
-    function send_aggregated_weights(bytes memory _weights) public onlyOwner {
+    // Function to send aggregated weights after processing
+    function send_aggregated_weights(bytes memory _weights) public onlyAggregator {
         require(fl_state == FL_STATE.LEARNING);
         aggregated_weights = _weights;
         weights_len = 0;
@@ -157,8 +212,10 @@ contract FederatedLearning is Ownable {
         emit AggregatedWeightsReady();
     }
 
+    // Function to retrieve the aggregated weights
     function retrieve_aggregated_weights()
         public
+        view
         onlyAuthorized
         returns (bytes memory)
     {
@@ -166,7 +223,8 @@ contract FederatedLearning is Ownable {
         return aggregated_weights;
     }
 
-    function reset_aggregated_weights() public onlyOwner {
+    // Function to reset the aggregated weights for a new round
+    function reset_aggregated_weights() public onlyAggregator {
         for (uint256 i = 0; i < collaborators.length; i++) {
             address collaborator = collaborators[i];
             delete hasCalledFunction[collaborator][
@@ -176,11 +234,13 @@ contract FederatedLearning is Ownable {
         delete everyoneHasCalled["retrieve_aggregated_weights"];
     }
 
-    function close() public onlyOwner {
+    // Function to transition to the CLOSE state
+    function close() public onlyRole(DEFAULT_ADMIN_ROLE) {
         fl_state = FL_STATE.CLOSE;
         emit CloseState();
     }
 
+    // Function to get the current state as a string
     function get_state() public view returns (string memory) {
         if (fl_state == FL_STATE.CLOSE) return "CLOSE";
         if (fl_state == FL_STATE.OPEN) return "OPEN";
@@ -189,14 +249,17 @@ contract FederatedLearning is Ownable {
         return "No State";
     }
 
+     // Function to get the list of all collaborators
     function get_collaborators() public view returns (address[] memory) {
         return collaborators;
     }
 
+    // Function to get the model data
     function get_model() public view onlyAuthorized returns (bytes memory) {
         return model;
     }
 
+    // Function to get the compilation information
     function get_compile_info()
         public
         view
@@ -206,6 +269,7 @@ contract FederatedLearning is Ownable {
         return compile_info;
     }
 
+    // Function to get the aggregated weights
     function get_aggregated_weights()
         public
         view
@@ -214,4 +278,54 @@ contract FederatedLearning is Ownable {
     {
         return aggregated_weights;
     }
+
+    // Collaborative timeout handling
+    function reportTimeout() public onlyAuthorized {
+        require(fl_state == FL_STATE.LEARNING, "Not in learning state");
+        require(block.timestamp >= roundStartTime + roundTimeout,
+                    "Timeout not reached");
+        require(!hasReportedTimeout[msg.sender], "Already reported timeout");
+        hasReportedTimeout[msg.sender] = true;
+        timeoutReportCount++;
+        emit TimeoutReported(msg.sender);
+        // Proceed only if enough reports received
+        if (timeoutReportCount >= timeoutReportThreshold)
+           emit RoundProceeded();
+    }
+
+    // Function to handle aggregator failure reports
+    function reportAggregatorFailure() public onlyAuthorized {
+        require(fl_state == FL_STATE.LEARNING, "Not in learning state");
+        require(block.timestamp >= roundStartTime + roundTimeout, "Timeout not reached");
+        require(!hasReportedTimeout[msg.sender], "Already reported timeout");
+    
+        hasReportedTimeout[msg.sender] = true;
+        timeoutReportCount++;
+
+        emit TimeoutReported(msg.sender);
+
+        // If the number of reports exceeds the threshold, emit a failure event or take action
+        if (timeoutReportCount >= timeoutReportThreshold) {
+            // Reset state or reassign aggregator role if necessary
+            fl_state = FL_STATE.CLOSE; // Example: Transition to a safe state
+            emit CloseState(); // Notify system of state change
+        }
+    }
+
+    // Function to elect a new aggregator in a round-robin manner
+    function electNewAggregator() public onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(fl_state == FL_STATE.CLOSE, "Can only elect a new aggregator when the state is CLOSE");
+        require(collaborators.length > 0, "No collaborators available to elect as aggregator");
+
+        // Round-robin selection logic
+        aggregator = collaborators[lastElectedIndex];
+
+        // Update the index to the next collaborator, wrapping around if necessary
+        lastElectedIndex = (lastElectedIndex + 1) % collaborators.length;
+
+        emit NewAggregatorElected(aggregator);
+    }
+
+
+
 }
