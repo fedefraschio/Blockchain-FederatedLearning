@@ -168,11 +168,14 @@ def fitting_model_and_loading_weights(_hospital_name, round, fed_dict):
     print_line("*")
     
     # Hospital evaluation (COMMENT this to speed things up)
+    
+    # Hospital evaluation (COMMENT this to speed things up)
     '''
     hospitals_evaluation[_hospital_name].append(
         hospitals[_hospital_name].model.evaluate(test_dataset)
     )
     '''
+    
     
     hospitals[_hospital_name].weights = hospitals[_hospital_name].model.get_weights()
 
