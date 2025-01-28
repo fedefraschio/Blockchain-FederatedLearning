@@ -3,13 +3,12 @@ import json
 import io
 
 
-def decode_utf8(_tx, view=False):
-
-    if view:    
-        return _tx.decode("utf-8")
+def decode_utf8(_tx, view = False):
+    if view:
+        retrieved_utf8 = _tx
     else:
         retrieved_utf8 = _tx.return_value
-        return retrieved_utf8.decode("utf-8")
+    return retrieved_utf8.decode("utf-8")
 
 
 def weights_encoding(_weights):
