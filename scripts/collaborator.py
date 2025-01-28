@@ -166,13 +166,14 @@ def fitting_model_and_loading_weights(_hospital_name, round, fed_dict):
     print(f'Accuracy: {accuracy_value:.3f}\tMacro-F1: {f1_value:.3f}')
     print()
     print_line("*")
-
+    
+    # Hospital evaluation (COMMENT this to speed things up)
     '''
     hospitals_evaluation[_hospital_name].append(
         hospitals[_hospital_name].model.evaluate(test_dataset)
     )
     '''
-
+    
     hospitals[_hospital_name].weights = hospitals[_hospital_name].model.get_weights()
 
     """ loading weights """
