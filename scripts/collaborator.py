@@ -166,11 +166,13 @@ def fitting_model_and_loading_weights(_hospital_name, round, fed_dict):
     print(f'Accuracy: {accuracy_value:.3f}\tMacro-F1: {f1_value:.3f}')
     print()
     print_line("*")
+
     '''
     hospitals_evaluation[_hospital_name].append(
         hospitals[_hospital_name].model.evaluate(test_dataset)
     )
     '''
+
     hospitals[_hospital_name].weights = hospitals[_hospital_name].model.get_weights()
 
     """ loading weights """
@@ -201,10 +203,11 @@ def retrieving_aggreagted_weights(_hospital_name):
     retrieve_aggregated_weights_tx = FL_contract.retrieve_aggregated_weights(
         {"from": hospitals[_hospital_name].address}
     )
-    gas_fee_collab[_hospital_name]['retrieve_fee'].append(retrieve_aggregated_weights_tx.gas_used)
-    retrieve_aggregated_weights_tx.wait(1)
+    print(retrieve_aggregated_weights_tx)
+    #gas_fee_collab[_hospital_name]['retrieve_fee'].append(retrieve_aggregated_weights_tx.gas_used)
+    #retrieve_aggregated_weights_tx.wait(1)
 
-    weight_hash = decode_utf8(retrieve_aggregated_weights_tx)
+    weight_hash = decode_utf8(retrieve_aggregated_weights_tx, view=True)
 
     # download the aggregated weights from IPFS
     start_time = time.time()
