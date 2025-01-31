@@ -114,6 +114,7 @@ def createHospitals(train_path, test_path, hospital_split, dataset_name):
 
     hospital_dataset['test'] = test_dataset
     return hospitals, hospital_dataset
+
 def get_hospitals():
     hospitals = {}
     with open(HOSPITALS_FILE_PATH, "rb") as file:

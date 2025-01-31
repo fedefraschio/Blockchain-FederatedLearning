@@ -6,16 +6,16 @@ from numpy import require
 dir_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, dir_path)
 
+import ipfshttpclient
+import asyncio
+import json
+import pickle
 from utils_simulation import get_hospitals, print_line, set_reproducibility, round_out_of_battery, \
     device_out_of_battery, load_dataset
 from utils_collaborator import *
 from brownie import FederatedLearning
 from classHospital import Hospital
-import ipfshttpclient
 from tensorflow.keras.models import model_from_json
-import asyncio
-import json
-import pickle
 from constants import NUM_ROUNDS
 from sklearn.metrics import classification_report, f1_score, accuracy_score
 from fedAvg import FedAvg
@@ -32,9 +32,9 @@ set_reproducibility()
 hospitals = get_hospitals()
 hospital_dataset = load_dataset(hospitals)
 test_dataset = hospital_dataset['test']
+
 # connect to IPFS and Blockchain
 IPFS_client = ipfshttpclient.connect()
-
 FL_contract = FederatedLearning[-1]
 
 # manage contract events
@@ -77,7 +77,6 @@ def closeState_alert(event):
 
 # triggered after the START event from the Blockchain
 def start_event():
-
     for hospital_name in hospitals:
         # retrieving of the model given by the Manager
         retrieve_model_tx = FL_contract.retrieve_model(
@@ -168,14 +167,11 @@ def fitting_model_and_loading_weights(_hospital_name, round, fed_dict):
     print_line("*")
     
     # Hospital evaluation (COMMENT this to speed things up)
-    
-    # Hospital evaluation (COMMENT this to speed things up)
     '''
     hospitals_evaluation[_hospital_name].append(
         hospitals[_hospital_name].model.evaluate(test_dataset)
     )
     '''
-    
     
     hospitals[_hospital_name].weights = hospitals[_hospital_name].model.get_weights()
 
@@ -207,9 +203,8 @@ def retrieving_aggreagted_weights(_hospital_name):
     retrieve_aggregated_weights_tx = FL_contract.retrieve_aggregated_weights(
         {"from": hospitals[_hospital_name].address}
     )
-    print(retrieve_aggregated_weights_tx)
-    #gas_fee_collab[_hospital_name]['retrieve_fee'].append(retrieve_aggregated_weights_tx.gas_used)
-    #retrieve_aggregated_weights_tx.wait(1)
+    # gas_fee_collab[_hospital_name]['retrieve_fee'].append(retrieve_aggregated_weights_tx.gas_used)
+    # retrieve_aggregated_weights_tx.wait(1)
 
     weight_hash = decode_utf8(retrieve_aggregated_weights_tx, view=True)
 
@@ -295,10 +290,6 @@ async def main():
         # continue after reception
         aggregatedWeightsReady_event(round)
         round += 1
-
-
-
-
 
 
 asyncio.run(main())

@@ -13,6 +13,7 @@ def get_account():
         network.show_active() in LOCAL_BLOCKCHAIN_ENVIRONMENTS
         or network.show_active() in FORKED_LOCAL_ENVIRONMENTS
     ):
+        print("account admin: ", accounts[0]) # DEBUG
         return accounts[0]
     else:
         return accounts.add(config["wallets"]["from_key"])

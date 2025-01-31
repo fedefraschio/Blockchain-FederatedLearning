@@ -40,6 +40,13 @@ FL_contract = FederatedLearning[-1]
 # manage contract events
 contract_events = FL_contract.events
 
+# saving name of hospital
+if len(sys.argv) < 6:
+    print("Usage: collaborator_parallel.py hospital_name [out_of_battery] --network network_name")
+    exit(1)
+
+hospital_name = sys.argv[3]
+
 # storing the hospitals performance results through the Federated Learning rounds
 hospitals_evaluation = {hospital_name: [] for hospital_name in hospitals}
 
@@ -59,7 +66,7 @@ with open('devices_out_of_battery.pkl', 'wb') as file:
     # Use pickle.dump to save the list to the file
     pickle.dump(DEVICES_OUT_OF_BATTERY, file)
 
-# dictionary for collaborator fee
+# dict for collaborator fee
 gas_fee_collab = {hospital_name: {'retrieve_fee': [], 'send_fee': [], 'model_start_fee': 0} for hospital_name in
                   hospitals}
 
@@ -78,48 +85,49 @@ def closeState_alert(event):
 # triggered after the START event from the Blockchain
 def start_event():
 
-    for hospital_name in hospitals:
-        # retrieving of the model given by the Manager
-        retrieve_model_tx = FL_contract.retrieve_model(
-            {"from": hospitals[hospital_name].address}
-        )
-        gas_fee_collab[hospital_name]['model_start_fee'] = retrieve_model_tx.gas_used
-        retrieve_model_tx.wait(1)
+    print("Hello hospital " + hospital_name + "!!")
+
+    # retrieving of the model given by the Manager
+    retrieve_model_tx = FL_contract.retrieve_model(
+        {"from": hospitals[hospital_name].address}
+    )
+    gas_fee_collab[hospital_name]['model_start_fee'] = retrieve_model_tx.gas_used
+    retrieve_model_tx.wait(1)
 
 
-        custom_objects = {'FedAvg': FedAvg, 'FedProx': FedProx}
-        decoded_model = decode_utf8(retrieve_model_tx)
-        model = model_from_json(decoded_model, custom_objects=custom_objects)
+    custom_objects = {'FedAvg': FedAvg, 'FedProx': FedProx}
+    decoded_model = decode_utf8(retrieve_model_tx)
+    model = model_from_json(decoded_model, custom_objects=custom_objects)
 
-        print("Model ", model)
-        hospitals[hospital_name].model = model
+    print("Model ", model)
+    hospitals[hospital_name].model = model
 
-        # retrieving of the compile information goven by the Manager
-        retreive_compile_info_tx = FL_contract.retrieve_compile_info(
-            {"from": hospitals[hospital_name].address}
-        )
-        gas_fee_collab[hospital_name]['model_start_fee'] += retreive_compile_info_tx.gas_used
-        retreive_compile_info_tx.wait(1)
+    # retrieving of the compile information goven by the Manager
+    retreive_compile_info_tx = FL_contract.retrieve_compile_info(
+        {"from": hospitals[hospital_name].address}
+    )
+    gas_fee_collab[hospital_name]['model_start_fee'] += retreive_compile_info_tx.gas_used
+    retreive_compile_info_tx.wait(1)
 
-        decoded_compile_info = decode_utf8(retreive_compile_info_tx)
-        fl_compile_info = json.loads(decoded_compile_info)
-        hospitals[hospital_name].compile_info = fl_compile_info
+    decoded_compile_info = decode_utf8(retreive_compile_info_tx)
+    fl_compile_info = json.loads(decoded_compile_info)
+    hospitals[hospital_name].compile_info = fl_compile_info
 
-        # compiling the model with the compile information
-        hospitals[hospital_name].model.compile(**hospitals[hospital_name].compile_info)
+    # compiling the model with the compile information
+    hospitals[hospital_name].model.compile(**hospitals[hospital_name].compile_info)
 
 
 # operations to do at every FL round
 def round_loop(round, fed_dict, file_name):
-    for hospital_name in hospitals:
-        if hospital_name not in fed_dict:
-            fed_dict[hospital_name] = {}
-        if round >= ROUND_BATTERY and hospital_name in DEVICES_OUT_OF_BATTERY:
-            print(f"Device {hospital_name} is out of battery")
-            fed_dict[hospital_name][round] = "out_of_battery"
-        else:
-            print(f"Device {hospital_name} is training ...")
-            fed_dict = fitting_model_and_loading_weights(hospital_name, round, fed_dict)
+
+    if hospital_name not in fed_dict:
+        fed_dict[hospital_name] = {}
+    if round >= ROUND_BATTERY and hospital_name in DEVICES_OUT_OF_BATTERY:
+        print(f"Device {hospital_name} is out of battery")
+        fed_dict[hospital_name][round] = "out_of_battery"
+    else:
+        print(f"Device {hospital_name} is training ...")
+        fed_dict = fitting_model_and_loading_weights(hospital_name, round, fed_dict)
 
     path = './results/' + file_name + '.json'
     with open(path, 'w') as json_file:
@@ -129,13 +137,12 @@ def round_loop(round, fed_dict, file_name):
 
 # triggered after the 'aggregatedWeightsReady' event from the Blockchain
 def aggregatedWeightsReady_event(round):
-    for hospital_name in hospitals:
-        if hospital_name in DEVICES_OUT_OF_BATTERY and (round + 1) >= ROUND_BATTERY:
-            continue
-        print("Retrieving weights for hospital ", hospital_name)
-        retrieving_aggreagted_weights(hospital_name)
-        print("-" * 50)
-        print()
+    if hospital_name in DEVICES_OUT_OF_BATTERY and (round + 1) >= ROUND_BATTERY:
+        return
+    print("Retrieving weights for hospital ", hospital_name)
+    retrieving_aggreagted_weights(hospital_name)
+    print("-" * 50)
+    print()
 
 
 def fitting_model_and_loading_weights(_hospital_name, round, fed_dict):
@@ -166,17 +173,13 @@ def fitting_model_and_loading_weights(_hospital_name, round, fed_dict):
     print(f'Accuracy: {accuracy_value:.3f}\tMacro-F1: {f1_value:.3f}')
     print()
     print_line("*")
-    
-    # Hospital evaluation (COMMENT this to speed things up)
-    
-    # Hospital evaluation (COMMENT this to speed things up)
+
     '''
     hospitals_evaluation[_hospital_name].append(
         hospitals[_hospital_name].model.evaluate(test_dataset)
     )
     '''
-    
-    
+
     hospitals[_hospital_name].weights = hospitals[_hospital_name].model.get_weights()
 
     """ loading weights """
