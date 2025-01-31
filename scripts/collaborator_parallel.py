@@ -42,7 +42,7 @@ contract_events = FL_contract.events
 
 # saving name of hospital
 if len(sys.argv) < 6:
-    print("Usage: collaborator_parallel.py hospital_name <out_of_battery>")
+    print("Usage: collaborator_parallel.py hospital_name [out_of_battery] --network network_name")
     exit(1)
 
 hospital_name = sys.argv[3]
@@ -137,13 +137,12 @@ def round_loop(round, fed_dict, file_name):
 
 # triggered after the 'aggregatedWeightsReady' event from the Blockchain
 def aggregatedWeightsReady_event(round):
-    for hospital_name in hospitals:
-        if hospital_name in DEVICES_OUT_OF_BATTERY and (round + 1) >= ROUND_BATTERY:
-            continue
-        print("Retrieving weights for hospital ", hospital_name)
-        retrieving_aggreagted_weights(hospital_name)
-        print("-" * 50)
-        print()
+    if hospital_name in DEVICES_OUT_OF_BATTERY and (round + 1) >= ROUND_BATTERY:
+        return
+    print("Retrieving weights for hospital ", hospital_name)
+    retrieving_aggreagted_weights(hospital_name)
+    print("-" * 50)
+    print()
 
 
 def fitting_model_and_loading_weights(_hospital_name, round, fed_dict):
