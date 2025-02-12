@@ -1,128 +1,133 @@
-import threading
 import asyncio
+import sys
+
 import os
 import sys
-from utils_simulation import get_hospitals, load_dataset, print_line, set_reproducibility
-from utils_collaborator import *
+
+# Get the directory containing this script and add it to the sys.path
+dir_path = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, dir_path)
+
+from utils_simulation import get_X_test, get_y_test, print_line, set_reproducibility, get_hospitals, load_dataset
 from utils_manager import *
+from new_manager import Manager
+from new_collaborator import Collaborator
+
 from brownie import FederatedLearning, network, accounts
-import ipfshttpclient
-import json
-import time
-import numpy as np
-import random
-import tensorflow as tf
-import logging
 from deploy_FL import get_account
-from tensorflow.keras.models import model_from_json
+import ipfshttpclient
 
+from sklearn.metrics import classification_report
+import numpy as np
+import asyncio
+import time
+import pickle
+import tensorflow as tf
+import json
 
-ROLE = 'collaborator'
-hospital_name = sys.argv[3]
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-if hospital_name == 'aggregator':
-    raise ValueError("Select a suitable name for the node. \"aggregator\" might create conflicts with other parameters.")
+set_reproducibility()
+# -----------------------
+# Aggregator-specific logic
+# -----------------------
 
+async def aggregator_mode():
+    print(">>> Running as Aggregator")
+    # Place here (or call) the asynchronous aggregator logic from your aggregator script.
+    # For example:
+    # - Send the model and compile info to the blockchain.
+    # - Wait for collaborators to retrieve them.
+    # - Wait for the collaborators to send back their weights.
+    # - Retrieve weights, aggregate them, and send back the aggregated weights.
+    # - After completing a round, signal role transfer on the blockchain.
+    mgr = Manager()
+    await mgr.main()
+    print(">>> Aggregator round complete; passing role to collaborator")
 
-if 'aggregator' in sys.argv:
-    ROLE = 'aggregator'
+# -----------------------
+# Collaborator-specific logic
+# -----------------------
+async def collaborator_mode():
+    print(">>> Running as Collaborator")
+    # Place here (or call) the asynchronous collaborator logic from your collaborator script.
+    # For example:
+    # - Listen for the START event, then retrieve model/compile info.
+    # - Train the model on local data.
+    # - Upload your weights and wait for aggregated weights.
+    collab = Collaborator(hospital_name=sys.argv[4], out_of_battery=False, network=None)
+    await collab.main()
+    print(">>> Collaborator round complete; waiting to see if I become aggregator")
 
+# -----------------------
+# Role-transfer watcher
+# -----------------------
+async def watch_for_role_transfer():
+    # This function listens for a blockchain (or other) event
+    # that tells this node it should become the aggregator.
+    # For example, you might subscribe to an event "AggregatorRoleTransfer"
+    # and check if the new aggregator address matches this node's address.
+    # Here, we simply simulate an event after a delay.
+    await asyncio.sleep(15)  # simulate waiting for the event
+    # In a real implementation, return a value or set a flag.
+    print(">>> Received event: become aggregator")
+    return "aggregator"
 
-# Configurazione IPFS e Blockchain
-IPFS_client = ipfshttpclient.connect()
-FL_contract = FederatedLearning[-1]
+# -----------------------
+# Main node logic that manages role switching
+# -----------------------
 
-# Dataset condiviso
-hospitals = get_hospitals()
-hospital_dataset = load_dataset(hospitals)
-test_dataset = hospital_dataset['test']
-manager = get_account()  # Indirizzo del manager (solo se ROLE è "aggregator")
+async def node_main(initial_role: str):
+    role = initial_role
+    # Run forever (or for the number of rounds you need)
+    while True:
+        if role == "aggregator":
+            # Run aggregator tasks.
+            await aggregator_mode()
+            # After finishing a round, you might decide to pass the role.
+            # (For example, your aggregator routine could have sent a blockchain event that
+            # tells another node to become aggregator. Your node, after finishing,
+            # could choose to become a collaborator.)
+            role = "collaborator"
+        else:
+            # In collaborator mode, run the collaborator task concurrently with a watcher.
+            collab_task = asyncio.create_task(collaborator_mode())
+            role_watcher = asyncio.create_task(watch_for_role_transfer())
 
-NUM_ROUNDS = 5
+            # Wait until one of the tasks finishes.
+            done, pending = await asyncio.wait(
+                [collab_task, role_watcher],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
 
-class Collaborator(threading.Thread):
-    def __init__(self, hospital_name):
-        super().__init__()
-        self.hospital_name = hospital_name
-        self.hospital = hospitals[hospital_name]
+            if role_watcher in done:
+                # The node is being signaled to switch to aggregator mode.
+                role = role_watcher.result()  # expected to be "aggregator"
+                # Optionally cancel the collaborator work if it’s still running:
+                for task in pending:
+                    task.cancel()
+            else:
+                # Otherwise, keep being a collaborator (or perform other logic).
+                role = "collaborator"
 
-    def retrieve_model(self):
-        retrieve_model_tx = FL_contract.retrieve_model({"from": self.hospital.address})
-        retrieve_model_tx.wait(1)
-        model_data = decode_utf8(retrieve_model_tx)
-        custom_objects = {'FedAvg': FedAvg, 'FedProx': FedProx}
-        self.hospital.model = model_from_json(model_data, custom_objects=custom_objects)
+        # Optionally, you can add a break condition (e.g., when FL is complete).
+        # For this example, we let it run indefinitely.
+        print(f"Switching role; current role is now '{role}'\n")
 
-    def train_local_model(self):
-        train_dataset = hospital_dataset[self.hospital_name]
-        epochs = random.randint(1, NUM_EPOCHS)
-        for epoch in range(epochs):
-            for imgs, labels in train_dataset:
-                self.hospital.model.train_step(imgs, labels)
-        self.hospital.weights = self.hospital.model.get_weights()
+# -----------------------
+# Entry point
+# -----------------------
 
-    def send_weights(self):
-        weights_bytes = weights_encoding(self.hospital.weights)
-        add_info = IPFS_client.add(weights_bytes, pin=True)
-        hash_encoded = add_info["Hash"].encode("utf-8")
-        send_weights_tx = FL_contract.send_weights(hash_encoded, {"from": self.hospital.address})
-        send_weights_tx.wait(1)
-
-    def run(self):
-        print(f"[Collaborator] Nodo {self.hospital_name} avviato")
-        self.retrieve_model()
-        for round_num in range(NUM_ROUNDS):
-            print(f"[Collaborator] Round {round_num + 1}: Training in corso...")
-            self.train_local_model()
-            self.send_weights()
-
-class Aggregator(threading.Thread):
-    def __init__(self):
-        super().__init__()
-        self.global_weights = None
-
-    def retrieve_weights(self):
-        hospitals_addresses = FL_contract.get_collaborators({"from": manager})
-        hospitals_weights = {}
-        for address in hospitals_addresses:
-            weights_hash = FL_contract.retrieve_weights(address, {"from": manager}).decode("utf-8")
-            weights_encoded = IPFS_client.cat(weights_hash)
-            hospitals_weights[address] = weights_decoding(weights_encoded)
-        return hospitals_weights
-
-    def aggregate_weights(self, hospitals_weights):
-        weights_dim = len(next(iter(hospitals_weights.values())))
-        aggregated_weights = []
-        for i in range(weights_dim):
-            layer_weights = [weights[i] for weights in hospitals_weights.values()]
-            aggregated_weights.append(sum(layer_weights) / len(hospitals_weights))
-        return aggregated_weights
-
-    def distribute_weights(self, aggregated_weights):
-        aggregated_weights_bytes = weights_encoding(aggregated_weights)
-        res = IPFS_client.add(aggregated_weights_bytes, pin=True)
-        hash_encoded = res["Hash"].encode("utf-8")
-        send_aggregated_weights_tx = FL_contract.send_aggregated_weights(hash_encoded, {"from": manager})
-        send_aggregated_weights_tx.wait(1)
-
-    def run(self):
-        print("[Aggregator] Nodo aggregatore avviato")
-        for round_num in range(NUM_ROUNDS):
-            print(f"[Aggregator] Round {round_num + 1}: Aggregazione in corso...")
-            hospitals_weights = self.retrieve_weights()
-            self.global_weights = self.aggregate_weights(hospitals_weights)
-            self.distribute_weights(self.global_weights)
-
-
-if __name__  == 'main':
-    format = "%(asctime)s: %(message)s"
-    logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
-    logging.info("Main  : created node entity for " + hospital_name + "\nRole: " + ROLE)
-    
-    if ROLE == 'collaborator':
-        thread = Aggregator()
-    elif ROLE == 'aggregator':
-        thread = Collaborator(hospital_name=hospital_name)
+print('PRIMA------------------------------------------------')
+if __name__ == "Users.alessandro.Documents.GitHub.Blockchain-FederatedLearning.scripts.node":
+    # Choose the initial role via a command-line argument or configuration.
+    # For example: python node.py aggregator
+    if len(sys.argv) > 1 and sys.argv[3].lower() == "aggregator":
+        initial_role = "aggregator"
     else:
-        raise ValueError(f"{ROLE} is an unknown role. Possible roles: \"aggregator\" or \"collaborator\"")
+        initial_role = "collaborator"
+    
+    # Run the node main loop with asyncio.
+    asyncio.run(node_main(initial_role))
+print('DOPO')
 
