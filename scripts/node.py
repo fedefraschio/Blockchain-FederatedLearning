@@ -32,6 +32,16 @@ set_reproducibility()
 # Aggregator-specific logic
 # -----------------------
 
+# Choose the initial role via a command-line argument or configuration.
+# For example: python node.py aggregator
+if len(sys.argv) > 1 and sys.argv[3].lower() == "aggregator":
+    initial_role = "aggregator"
+else:
+    initial_role = "collaborator"
+
+
+hospital_name = sys.argv[4]
+
 async def aggregator_mode():
     print(">>> Running as Aggregator")
     # Place here (or call) the asynchronous aggregator logic from your aggregator script.
@@ -55,7 +65,7 @@ async def collaborator_mode():
     # - Listen for the START event, then retrieve model/compile info.
     # - Train the model on local data.
     # - Upload your weights and wait for aggregated weights.
-    collab = Collaborator(hospital_name=sys.argv[4], out_of_battery=False, network=None)
+    collab = Collaborator(hospital_name=hospital_name, out_of_battery=False, network=None)
     await collab.main()
     print(">>> Collaborator round complete; waiting to see if I become aggregator")
 
@@ -77,7 +87,7 @@ async def watch_for_role_transfer():
 # Main node logic that manages role switching
 # -----------------------
 
-async def node_main(initial_role: str):
+async def main(initial_role: str):
     role = initial_role
     # Run forever (or for the number of rounds you need)
     while True:
@@ -119,15 +129,7 @@ async def node_main(initial_role: str):
 # -----------------------
 
 print('PRIMA------------------------------------------------')
-if __name__ == "Users.alessandro.Documents.GitHub.Blockchain-FederatedLearning.scripts.node":
-    # Choose the initial role via a command-line argument or configuration.
-    # For example: python node.py aggregator
-    if len(sys.argv) > 1 and sys.argv[3].lower() == "aggregator":
-        initial_role = "aggregator"
-    else:
-        initial_role = "collaborator"
-    
-    # Run the node main loop with asyncio.
-    asyncio.run(node_main(initial_role))
+# Run the node main loop with asyncio.
+asyncio.run(main(initial_role))
 print('DOPO')
 

@@ -284,7 +284,3 @@ class Collaborator:
             self.aggregatedWeightsReady_event(round_idx)
             round_idx += 1
 
-
-if __name__ == '__main__':
-    collaborator = Collaborator()
-    asyncio.run(collaborator.main())

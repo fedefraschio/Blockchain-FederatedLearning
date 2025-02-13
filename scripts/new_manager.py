@@ -293,7 +293,3 @@ class Manager:
         # Optionally, you might want to save the best model here
         # sys.exit(0)  # Uncomment if you want the script to exit
 
-if __name__ == '__main__':
-    # If you run manager.py directly, the Manager.main() method will execute.
-    manager_obj = Manager()
-    asyncio.run(manager_obj.main())
