@@ -81,7 +81,7 @@ contract FederatedLearning is AccessControl {
         hasCalledFunction[msg.sender][functionName] = true; // Mark the function as called for this collaborator
 
         everyoneHasCalled[functionName]++;
-        if (everyoneHasCalled[functionName] == collaborators.length) {
+        if (everyoneHasCalled[functionName] == (collaborators.length)-1) {
             emit EveryCollaboratorHasCalledOnlyOnce(functionName);
         }
 

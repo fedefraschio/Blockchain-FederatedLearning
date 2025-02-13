@@ -284,7 +284,10 @@ class Manager:
         self.gas_fee_manager['change_state_fee'] += close_tx.gas_used
         close_tx.wait(1)
 
-        network.disconnect()
+        # Pass role to the other collaborator
+        self.FL_contract.electNewAggregator({"from": self.manager})
+
+        #####network.disconnect()
 
         # Save gas consumption data
         with open(f"gas_consumption/{self.file_name}_manager.json", 'w') as json_file:

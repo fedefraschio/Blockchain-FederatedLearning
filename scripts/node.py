@@ -28,6 +28,20 @@ import json
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 set_reproducibility()
+
+# Connect to IPFS and the Blockchain contract
+FL_contract = FederatedLearning[-1]
+contract_events = FL_contract.events
+
+# Choose the initial role via a command-line argument or configuration.
+# For example: python node.py aggregator
+if len(sys.argv) > 1 and sys.argv[3].lower() == "aggregator":
+    initial_role = "aggregator"
+else:
+    initial_role = "collaborator"
+
+hospital_name = sys.argv[4]
+
 # -----------------------
 # Aggregator-specific logic
 # -----------------------
@@ -65,12 +79,16 @@ async def collaborator_mode():
 async def watch_for_role_transfer():
     # This function listens for a blockchain (or other) event
     # that tells this node it should become the aggregator.
-    # For example, you might subscribe to an event "AggregatorRoleTransfer"
-    # and check if the new aggregator address matches this node's address.
-    # Here, we simply simulate an event after a delay.
-    await asyncio.sleep(15)  # simulate waiting for the event
-    # In a real implementation, return a value or set a flag.
-    print(">>> Received event: become aggregator")
+    ######await asyncio.sleep(15)  # simulate waiting for the event # TO BE INSERTED AGAIN
+    coroutine_transfer = contract_events.listen("NewAggregatorElected")
+    coroutine_result_transfer = await coroutine_transfer
+    aggregator = coroutine_result_transfer["args"]["aggregator"]
+    print("New aggregator elected:", aggregator)
+    ###
+    '''
+    TO DO: if aggregator == self: return 'aggregator' else return 'collaborator
+    '''
+    ###
     return "aggregator"
 
 # -----------------------
@@ -112,6 +130,7 @@ async def node_main(initial_role: str):
             else:
                 # Otherwise, keep being a collaborator (or perform other logic).
                 role = "collaborator"
+        
 
         # Optionally, you can add a break condition (e.g., when FL is complete).
         # For this example, we let it run indefinitely.
@@ -120,15 +139,6 @@ async def node_main(initial_role: str):
 # -----------------------
 # Entry point
 # -----------------------
-
-# Choose the initial role via a command-line argument or configuration.
-# For example: python node.py aggregator
-if len(sys.argv) > 1 and sys.argv[3].lower() == "aggregator":
-    initial_role = "aggregator"
-else:
-    initial_role = "collaborator"
-
-hospital_name = sys.argv[4]
 
 # Run the node main loop with asyncio.
 asyncio.run(node_main(initial_role))
