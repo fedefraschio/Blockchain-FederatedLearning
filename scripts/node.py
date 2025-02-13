@@ -32,16 +32,6 @@ set_reproducibility()
 # Aggregator-specific logic
 # -----------------------
 
-# Choose the initial role via a command-line argument or configuration.
-# For example: python node.py aggregator
-if len(sys.argv) > 1 and sys.argv[3].lower() == "aggregator":
-    initial_role = "aggregator"
-else:
-    initial_role = "collaborator"
-
-
-hospital_name = sys.argv[4]
-
 async def aggregator_mode():
     print(">>> Running as Aggregator")
     # Place here (or call) the asynchronous aggregator logic from your aggregator script.
@@ -52,7 +42,6 @@ async def aggregator_mode():
     # - Retrieve weights, aggregate them, and send back the aggregated weights.
     # - After completing a round, signal role transfer on the blockchain.
     mgr = Manager()
-    print('I\'m aggregator ' + hospital_name)
     await mgr.main()
     print(">>> Aggregator round complete; passing role to collaborator")
 
@@ -67,10 +56,6 @@ async def collaborator_mode():
     # - Train the model on local data.
     # - Upload your weights and wait for aggregated weights.
     collab = Collaborator(hospital_name=hospital_name, out_of_battery=False, network=None)
-<<<<<<< Updated upstream
-=======
-    print('I\'m Hospital ' + hospital_name)
->>>>>>> Stashed changes
     await collab.main()
     print(">>> Collaborator round complete; waiting to see if I become aggregator")
 
@@ -92,7 +77,7 @@ async def watch_for_role_transfer():
 # Main node logic that manages role switching
 # -----------------------
 
-async def main(initial_role: str):
+async def node_main(initial_role: str):
     role = initial_role
     # Run forever (or for the number of rounds you need)
     while True:
@@ -136,12 +121,6 @@ async def main(initial_role: str):
 # Entry point
 # -----------------------
 
-<<<<<<< Updated upstream
-print('PRIMA------------------------------------------------')
-# Run the node main loop with asyncio.
-asyncio.run(main(initial_role))
-print('DOPO')
-=======
 # Choose the initial role via a command-line argument or configuration.
 # For example: python node.py aggregator
 if len(sys.argv) > 1 and sys.argv[3].lower() == "aggregator":
@@ -153,5 +132,4 @@ hospital_name = sys.argv[4]
 
 # Run the node main loop with asyncio.
 asyncio.run(node_main(initial_role))
->>>>>>> Stashed changes
 
