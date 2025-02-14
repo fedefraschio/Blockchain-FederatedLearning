@@ -34,13 +34,17 @@ set_reproducibility()
 
 # Choose the initial role via a command-line argument or configuration.
 # For example: python node.py aggregator
-if len(sys.argv) > 1 and sys.argv[3].lower() == "aggregator":
+
+if len(sys.argv) != 6 and len(sys.argv) != 7:
+    raise ValueError("Invalid number of arguments")
+
+if len(sys.argv) > 1 and sys.argv[4].lower() == "aggregator":
     initial_role = "aggregator"
 else:
     initial_role = "collaborator"
 
 
-hospital_name = sys.argv[4]
+hospital_name = sys.argv[3]
 
 async def aggregator_mode():
     print(">>> Running as Aggregator")
@@ -72,6 +76,7 @@ async def collaborator_mode():
 # -----------------------
 # Role-transfer watcher
 # -----------------------
+'''
 async def watch_for_role_transfer():
     # This function listens for a blockchain (or other) event
     # that tells this node it should become the aggregator.
@@ -82,7 +87,7 @@ async def watch_for_role_transfer():
     # In a real implementation, return a value or set a flag.
     print(">>> Received event: become aggregator")
     return "aggregator"
-
+'''
 # -----------------------
 # Main node logic that manages role switching
 # -----------------------
@@ -94,31 +99,9 @@ async def main(initial_role: str):
         if role == "aggregator":
             # Run aggregator tasks.
             await aggregator_mode()
-            # After finishing a round, you might decide to pass the role.
-            # (For example, your aggregator routine could have sent a blockchain event that
-            # tells another node to become aggregator. Your node, after finishing,
-            # could choose to become a collaborator.)
             role = "collaborator"
         else:
-            # In collaborator mode, run the collaborator task concurrently with a watcher.
-            collab_task = asyncio.create_task(collaborator_mode())
-            role_watcher = asyncio.create_task(watch_for_role_transfer())
-
-            # Wait until one of the tasks finishes.
-            done, pending = await asyncio.wait(
-                [collab_task, role_watcher],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-
-            if role_watcher in done:
-                # The node is being signaled to switch to aggregator mode.
-                role = role_watcher.result()  # expected to be "aggregator"
-                # Optionally cancel the collaborator work if it’s still running:
-                for task in pending:
-                    task.cancel()
-            else:
-                # Otherwise, keep being a collaborator (or perform other logic).
-                role = "collaborator"
+            await collaborator_mode()
 
         # Optionally, you can add a break condition (e.g., when FL is complete).
         # For this example, we let it run indefinitely.
