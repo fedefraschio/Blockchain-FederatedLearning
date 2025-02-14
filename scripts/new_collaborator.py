@@ -45,12 +45,6 @@ class Collaborator:
         self.FL_contract = FederatedLearning[-1]
         self.contract_events = self.FL_contract.events
 
-        # Process command-line arguments
-        #if len(sys.argv) < 6:
-        #    print("Usage: collaborator_parallel.py hospital_name [out_of_battery] --network network_name")
-        #    sys.exit(1)
-        #self.hospital_name = sys.argv[3]
-
         # Initialize evaluation storage for this collaborator
         self.hospitals_evaluation = {self.hospital_name: []}
 
@@ -178,6 +172,12 @@ class Collaborator:
         print()
         print_line("*")
 
+        '''
+        hospitals_evaluation[_hospital_name].append(
+            hospitals[_hospital_name].model.evaluate(test_dataset)
+        )
+        '''
+
         # Get the model weights
         self.hospitals[_hospital_name].weights = self.hospitals[_hospital_name].model.get_weights()
         weights = self.hospitals[_hospital_name].weights
@@ -205,7 +205,7 @@ class Collaborator:
         retrieve_aggregated_weights_tx = self.FL_contract.retrieve_aggregated_weights(
             {"from": self.hospitals[_hospital_name].address}
         )
-        print(retrieve_aggregated_weights_tx)
+        #print(retrieve_aggregated_weights_tx)
         # Optionally record gas usage:
         # self.gas_fee_collab[_hospital_name]['retrieve_fee'].append(retrieve_aggregated_weights_tx.gas_used)
         # retrieve_aggregated_weights_tx.wait(1)

@@ -78,6 +78,7 @@ async def collaborator_mode():
 # -----------------------
 # Role-transfer watcher
 # -----------------------
+'''
 async def watch_for_role_transfer():
     # This function listens for a blockchain (or other) event
     # that tells this node it should become the aggregator.
@@ -105,10 +106,6 @@ async def node_main(initial_role: str):
         if role == "aggregator":
             # Run aggregator tasks.
             await aggregator_mode()
-            # After finishing a round, you might decide to pass the role.
-            # (For example, your aggregator routine could have sent a blockchain event that
-            # tells another node to become aggregator. Your node, after finishing,
-            # could choose to become a collaborator.)
             role = "collaborator"
         else:
             # In collaborator mode, run the collaborator task concurrently with a watcher.
