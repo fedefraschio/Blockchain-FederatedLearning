@@ -50,7 +50,7 @@ contract FederatedLearning is AccessControl {
     event AggregatedWeightsReady();
     event RoundProceeded(); // NEW
     event TimeoutReported(address reporter); // NEW
-    event NewAggregatorElected(address aggregator); // NEW
+    event NewAggregatorElected(); // NEW
 
     // Constructor to initialize the contract
     constructor(uint256 _roundTimeout, uint256 _timeoutReportThreshold) {
@@ -249,7 +249,7 @@ contract FederatedLearning is AccessControl {
         return "No State";
     }
 
-     // Function to get the list of all collaborators
+    // Function to get the list of all collaborators
     function get_collaborators() public view returns (address[] memory) {
         return collaborators;
     }
@@ -323,7 +323,12 @@ contract FederatedLearning is AccessControl {
         // Update the index to the next collaborator, wrapping around if necessary
         lastElectedIndex = (lastElectedIndex + 1) % collaborators.length;
 
-        emit NewAggregatorElected(aggregator);
+        emit NewAggregatorElected();
+    }
+
+    // Function to get the new aggregator
+    function get_aggregator() public view returns (address) {
+        return aggregator;
     }
 
 

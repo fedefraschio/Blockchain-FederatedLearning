@@ -33,8 +33,11 @@ set_reproducibility()
 FL_contract = FederatedLearning[-1]
 contract_events = FL_contract.events
 
+# Retrieve hospitals and load dataset
+hospitals = get_hospitals()
+
 # Choose the initial role via a command-line argument or configuration.
-# For example: python node.py aggregator
+# For example: python node.py aggregator A
 if len(sys.argv) > 1 and sys.argv[3].lower() == "aggregator":
     initial_role = "aggregator"
 else:
@@ -45,17 +48,11 @@ hospital_name = sys.argv[4]
 # -----------------------
 # Aggregator-specific logic
 # -----------------------
-
 async def aggregator_mode():
     print(">>> Running as Aggregator")
-    # Place here (or call) the asynchronous aggregator logic from your aggregator script.
-    # For example:
-    # - Send the model and compile info to the blockchain.
-    # - Wait for collaborators to retrieve them.
-    # - Wait for the collaborators to send back their weights.
-    # - Retrieve weights, aggregate them, and send back the aggregated weights.
-    # - After completing a round, signal role transfer on the blockchain.
+
     mgr = Manager()
+    
     await mgr.main()
     print(">>> Aggregator round complete; passing role to collaborator")
 
@@ -64,13 +61,15 @@ async def aggregator_mode():
 # -----------------------
 async def collaborator_mode():
     print(">>> Running as Collaborator")
-    # Place here (or call) the asynchronous collaborator logic from your collaborator script.
-    # For example:
-    # - Listen for the START event, then retrieve model/compile info.
-    # - Train the model on local data.
-    # - Upload your weights and wait for aggregated weights.
+    
     collab = Collaborator(hospital_name=hospital_name, out_of_battery=False, network=None)
-    await collab.main()
+    
+    # Collaborator runs util the exception is raised, in that case, we handle the role changing
+    try:
+        await collab.main()  # This should support graceful stopping
+    except asyncio.CancelledError:
+        print(">>> Collaborator execution was cancelled")
+        return
     print(">>> Collaborator round complete; waiting to see if I become aggregator")
 
 # -----------------------
@@ -79,11 +78,20 @@ async def collaborator_mode():
 async def watch_for_role_transfer():
     # This function listens for a blockchain (or other) event
     # that tells this node it should become the aggregator.
-    ######await asyncio.sleep(15)  # simulate waiting for the event # TO BE INSERTED AGAIN
     coroutine_transfer = contract_events.listen("NewAggregatorElected")
-    coroutine_result_transfer = await coroutine_transfer
-    aggregator = coroutine_result_transfer["args"]["aggregator"]
+    await coroutine_transfer
+    aggregator = FL_contract.get_aggregator({"from": hospitals[hospital_name].address})
+
+    ### THINGS TO DO: 
+    # Siamo arrivati qua: ora quando arriva l'evento "NewAggregatorElected", l'esecuzione del 
+    # collaborator si arresta e controlla l'indirizzo del nuovo aggregatore.
+    # Ora bisogna verificare: se sono io, allora divneto il nuovo aggregatore
+    # - Problema con i ruoli?
+    # - I pesi vengono sovrascritti dai nuovi o si ripararte dai vecchi?
+
+
     print("New aggregator elected:", aggregator)
+    print("My hospital address is:", hospitals[hospital_name].address)
     ###
     '''
     TO DO: if aggregator == self: return 'aggregator' else return 'collaborator

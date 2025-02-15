@@ -90,7 +90,7 @@ class Collaborator:
         # sys.exit(0)
 
     def start_event(self):
-        print("Hello hospital " + self.hospital_name + "!!")
+        print("Hello hospital " + self.hospital_name + " !!!")
 
         # Retrieve the model provided by the Manager
         retrieve_model_tx = self.FL_contract.retrieve_model(
@@ -283,4 +283,10 @@ class Collaborator:
             # Continue after reception
             self.aggregatedWeightsReady_event(round_idx)
             round_idx += 1
+
+            # Check if the aggregator role is changed
+                    # Check if the task was cancelled
+            if asyncio.current_task().cancelled():
+                print(">>> Stopping collaborator execution.")
+                break
 
