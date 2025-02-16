@@ -114,7 +114,7 @@ contract FederatedLearning is AccessControl {
 
     // Open the system for collaborators
     function open() public onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(fl_state == FL_STATE.CLOSE);
+        require(fl_state == FL_STATE.CLOSE || fl_state == FL_STATE.OPEN);
         fl_state = FL_STATE.OPEN;
     }
 
@@ -125,19 +125,19 @@ contract FederatedLearning is AccessControl {
     }
 
     // Set the initial model
-    function send_model(bytes memory _model) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function send_model(bytes memory _model) public onlyAggregator() {
         require(fl_state == FL_STATE.OPEN);
         model = _model;
     }
 
     // Provide compilation metadata
-    function send_compile_info(bytes memory _compile_info) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function send_compile_info(bytes memory _compile_info) public onlyAggregator() {
         require(fl_state == FL_STATE.OPEN);
         compile_info = _compile_info;
     }
 
     // Transition to the START state
-    function start() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function start() public onlyAggregator() {
         require(fl_state == FL_STATE.OPEN);
         fl_state = FL_STATE.START;
         emit StartState();
@@ -317,8 +317,16 @@ contract FederatedLearning is AccessControl {
         require(fl_state == FL_STATE.CLOSE, "Can only elect a new aggregator when the state is CLOSE");
         require(collaborators.length > 0, "No collaborators available to elect as aggregator");
 
+        // Revoke previous aggregator role
+        if (aggregator != address(0)) {
+            revokeRole(AGGREGATOR_ROLE, aggregator);
+        }
+        
         // Round-robin selection logic
         aggregator = collaborators[lastElectedIndex];
+
+        // Grant the new aggregator the AGGREGATOR_ROLE
+        grantRole(AGGREGATOR_ROLE, aggregator);
 
         // Update the index to the next collaborator, wrapping around if necessary
         lastElectedIndex = (lastElectedIndex + 1) % collaborators.length;
@@ -330,7 +338,5 @@ contract FederatedLearning is AccessControl {
     function get_aggregator() public view returns (address) {
         return aggregator;
     }
-
-
 
 }

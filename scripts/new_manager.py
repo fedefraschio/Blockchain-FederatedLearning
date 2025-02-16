@@ -29,6 +29,9 @@ sys.path.insert(0, dir_path)
 
 class Manager:
     def __init__(self):
+        # Initialization flag
+        self.first_run = True
+
         # Connect to IPFS and Blockchain
         self.IPFS_client = ipfshttpclient.connect()
         self.FL_contract = FederatedLearning[-1]
@@ -199,6 +202,11 @@ class Manager:
         best_f1 = 0.0
         best_model = None
         self.gas_fee_manager['send_aggregated_weights_fee'] = []
+
+        # Ensure that the blockchain is open
+        open_tx = self.FL_contract.open({"from": self.manager})
+        self.gas_fee_manager['open_blockchain_fee'] += open_tx.gas_used
+        open_tx.wait(1)
 
         # Upload model and compile information on the Blockchain
         print('Uploading model and compile information on the Blockchain')

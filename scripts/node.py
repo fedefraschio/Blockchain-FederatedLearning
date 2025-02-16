@@ -88,16 +88,11 @@ async def watch_for_role_transfer():
     # Ora bisogna verificare: se sono io, allora divneto il nuovo aggregatore
     # - Problema con i ruoli?
     # - I pesi vengono sovrascritti dai nuovi o si ripararte dai vecchi?
-
-
-    print("New aggregator elected:", aggregator)
-    print("My hospital address is:", hospitals[hospital_name].address)
-    ###
-    '''
-    TO DO: if aggregator == self: return 'aggregator' else return 'collaborator
-    '''
-    ###
-    return "aggregator"
+    personal_address = hospitals[hospital_name].address
+    if FL_contract.isAggregator(personal_address, {"from": hospitals[hospital_name].address}):
+        return "aggregator"
+    else:
+        return "collaborator"
 
 # -----------------------
 # Main node logic that manages role switching
