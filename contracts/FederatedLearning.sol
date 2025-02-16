@@ -234,11 +234,53 @@ contract FederatedLearning is AccessControl {
         delete everyoneHasCalled["retrieve_aggregated_weights"];
     }
 
+    // Function to reset all state variables when closing the contract
+    function resetContractState() internal {
+        // Resetting call state for each collaborator
+        for (uint i = 0; i < collaborators.length; i++) {
+            hasCalledFunction[collaborators[i]]["retrieve_model"] = false;
+            hasCalledFunction[collaborators[i]]["send_weights"] = false;
+            hasCalledFunction[collaborators[i]]["aggregated_weights"] = false;
+            hasCalledFunction[collaborators[i]]["retrieve_compile_info"] = false;
+            hasReportedTimeout[collaborators[i]] = false;
+        }
+
+        // Resetting call number
+        everyoneHasCalled["retrieve_model"] = 0;
+        everyoneHasCalled["send_weights"] = 0;
+        everyoneHasCalled["aggregated_weights"] = 0;
+        everyoneHasCalled["retrieve_compile_info"] = 0;
+        timeoutReportCount = 0;
+
+        // Resetting state variables
+        aggregated_weights = "";
+        model = "";
+        compile_info = "";
+        weights_len = 0;
+        roundStartTime = 0;
+        lastElectedIndex = 0;
+        roundTimeout = 0;
+
+        // Deleting saved weigths
+        for (uint i = 0; i < collaborators.length; i++) {
+            delete weights[collaborators[i]];
+        }
+
+        // Resetting aggregator address
+        aggregator = address(0);
+
+        // Keeping CLOSE state
+        fl_state = FL_STATE.CLOSE;
+    }
+
+
     // Function to transition to the CLOSE state
     function close() public onlyRole(DEFAULT_ADMIN_ROLE) {
         fl_state = FL_STATE.CLOSE;
+        resetContractState();
         emit CloseState();
     }
+
 
     // Function to get the current state as a string
     function get_state() public view returns (string memory) {

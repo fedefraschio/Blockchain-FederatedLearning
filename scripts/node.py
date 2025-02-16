@@ -37,13 +37,13 @@ contract_events = FL_contract.events
 hospitals = get_hospitals()
 
 # Choose the initial role via a command-line argument or configuration.
-# For example: python node.py aggregator A
-if len(sys.argv) > 1 and sys.argv[3].lower() == "aggregator":
+# Usage: brownie run .\scripts\node.py <hospital_name> [aggregator] --network fl-local
+if len(sys.argv) > 1 and sys.argv[4].lower() == "aggregator":
     initial_role = "aggregator"
 else:
     initial_role = "collaborator"
 
-hospital_name = sys.argv[4]
+hospital_name = sys.argv[3]
 
 # -----------------------
 # Aggregator-specific logic
@@ -124,6 +124,7 @@ async def node_main(initial_role: str):
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
+
             if role_watcher in done:
                 # The node is being signaled to switch to aggregator mode.
                 role = role_watcher.result()  # expected to be "aggregator"
@@ -131,6 +132,11 @@ async def node_main(initial_role: str):
                 for task in pending:
                     task.cancel()
             else:
+                ## DEBUG
+                print("Result of collab_task")
+                print(collab_task.result())
+
+
                 # Otherwise, keep being a collaborator (or perform other logic).
                 role = "collaborator"
         
