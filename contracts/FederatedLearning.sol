@@ -26,7 +26,7 @@ contract FederatedLearning is AccessControl {
     address public aggregator;             // Address of the aggregator
     bytes public model;                    // Serialized model data
     bytes public compile_info;             // Metadata about the model
-    bytes public aggregated_weights;       // Aggregated weights after learning
+    bytes public aggregated_weights = hex"00000000";       // Aggregated weights after learning
 
     mapping(address => bytes) public weights;          // Stores individual collaborator weights
     uint256 public weights_len;                        // Count of submitted weights
@@ -253,7 +253,6 @@ contract FederatedLearning is AccessControl {
         timeoutReportCount = 0;
 
         // Resetting state variables
-        aggregated_weights = "";
         model = "";
         compile_info = "";
         weights_len = 0;
@@ -276,8 +275,8 @@ contract FederatedLearning is AccessControl {
     // Function to transition to the CLOSE state
     function close() public onlyRole(DEFAULT_ADMIN_ROLE) {
         fl_state = FL_STATE.CLOSE;
-        resetContractState();
         emit CloseState();
+        resetContractState();
     }
 
 

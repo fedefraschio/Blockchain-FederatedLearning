@@ -52,6 +52,9 @@ class Manager:
         self.hospital_dataset = load_dataset(self.hospitals)
         self.test_dataset = self.hospital_dataset['test']
 
+        # Ensure that the weights are retrieved just once from previous iteration
+        self.get_previous_weigths = False
+
         # Load extra configuration
         with open('devices_out_of_battery.pkl', 'rb') as file:
             self.loaded_list = pickle.load(file)
@@ -134,8 +137,24 @@ class Manager:
         # For testing purposes, we use the averaged weights as the aggregated weights
         aggregated_weights = averaged_weights
 
+        ###### TEST ######
+        # 
+        aggregated_weights_before = self.FL_contract.retrieve_aggregated_weights({"from": self.manager})
+        if int(str(aggregated_weights_before), 16) != 0  and self.get_previous_weigths == False:
+            print("Getting aggregated weights previous aggregator")
+            weight_hash = decode_utf8(aggregated_weights_before, view=True)
+
+            # Download the aggregated weights from IPFS
+            start_time = time.time()
+            aggregated_weights_encoded = self.IPFS_client.cat(weight_hash)
+            print("IPFS 'cat' time: ", str(time.time() - start_time))
+            aggregated_weights = weights_decoding(aggregated_weights_encoded)
+            self.get_previous_weigths = True
+        ###### #### ######
+
         # Upload the aggregated weights to IPFS
         aggregated_weights_bytes = weights_encoding(aggregated_weights)
+
         res = self.IPFS_client.add(aggregated_weights_bytes, pin=PIN_BOOL)
         hash_encoded = res["Hash"].encode("utf-8")
         # Send the aggregated weights to the blockchain
