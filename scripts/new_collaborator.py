@@ -87,7 +87,7 @@ class Collaborator:
             for round_idx, (loss, acc) in enumerate(self.hospitals_evaluation[hosp_name], start=1):
                 print(f"\tRound {round_idx}:\tLoss: {loss:.3f} - Accuracy: {acc:.3f}")
         # Uncomment if you want to disconnect and exit:
-        # sys.exit(0)
+        #sys.exit(0)
 
     def start_event(self):
         print("Hello hospital " + self.hospital_name + " !!!")
@@ -266,6 +266,7 @@ class Collaborator:
         round_idx = 0
         fed_dict = {}
         while True:
+            await asyncio.sleep(5) # we wait to see if the contract will be closed
             print("Start round loop ...")
             fed_dict = self.round_loop(round_idx, fed_dict, file_name)
 

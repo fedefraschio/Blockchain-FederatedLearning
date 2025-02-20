@@ -178,7 +178,7 @@ contract FederatedLearning is AccessControl {
     ) public onlyAuthorized everyCollaboratorHasCalledOnce("send_weights") {
         require(fl_state == FL_STATE.LEARNING);
         weights_len++;
-        require(weights_len <= collaborators.length);
+        require(weights_len <= collaborators.length); //// Prima era senza -1
         weights[msg.sender] = _weights;
     }
 
@@ -258,7 +258,6 @@ contract FederatedLearning is AccessControl {
         compile_info = "";
         weights_len = 0;
         roundStartTime = 0;
-        lastElectedIndex = 0;
         roundTimeout = 0;
 
         // Deleting saved weigths
@@ -355,7 +354,7 @@ contract FederatedLearning is AccessControl {
     }
 
     // Function to elect a new aggregator in a round-robin manner
-    function electNewAggregator() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function electNewAggregator() public onlyAggregator {
         require(fl_state == FL_STATE.CLOSE, "Can only elect a new aggregator when the state is CLOSE");
         require(collaborators.length > 0, "No collaborators available to elect as aggregator");
 
