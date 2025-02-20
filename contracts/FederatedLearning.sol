@@ -150,7 +150,7 @@ contract FederatedLearning is AccessControl {
         everyCollaboratorHasCalledOnce("retrieve_model")
         returns (bytes memory)
     {
-        require(fl_state == FL_STATE.START);
+        require(fl_state == FL_STATE.START, "Not in START state");
         return model;
     }
 
@@ -161,7 +161,7 @@ contract FederatedLearning is AccessControl {
         everyCollaboratorHasCalledOnce("retrieve_compile_info")
         returns (bytes memory)
     {
-        require(fl_state == FL_STATE.START);
+        require(fl_state == FL_STATE.START, "Not in START state");
         return compile_info;
     }
 
@@ -176,7 +176,7 @@ contract FederatedLearning is AccessControl {
     function send_weights(
         bytes memory _weights
     ) public onlyAuthorized everyCollaboratorHasCalledOnce("send_weights") {
-        require(fl_state == FL_STATE.LEARNING);
+        require(fl_state == FL_STATE.LEARNING, "Not in LEARNING state");
         weights_len++;
         require(weights_len <= collaborators.length);
         weights[msg.sender] = _weights;
@@ -186,7 +186,7 @@ contract FederatedLearning is AccessControl {
     function retrieve_weights(
         address _collaborator
     ) public view onlyAggregator returns (bytes memory) {
-        require(fl_state == FL_STATE.LEARNING);
+        require(fl_state == FL_STATE.LEARNING, "Not in LEARNING state");
         return weights[_collaborator];
     }
 
@@ -219,7 +219,7 @@ contract FederatedLearning is AccessControl {
         onlyAuthorized
         returns (bytes memory)
     {
-        require(fl_state == FL_STATE.LEARNING);
+        require(fl_state == FL_STATE.LEARNING, "Not in LEARNING state");
         return aggregated_weights;
     }
 
@@ -257,8 +257,7 @@ contract FederatedLearning is AccessControl {
         model = "";
         compile_info = "";
         weights_len = 0;
-        roundStartTime = 0;
-        lastElectedIndex = 0;
+        roundStartTime = 0; 
         roundTimeout = 0;
 
         // Deleting saved weigths

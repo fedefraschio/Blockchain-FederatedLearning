@@ -86,8 +86,12 @@ class Collaborator:
             print(f"{hosp_name}:")
             for round_idx, (loss, acc) in enumerate(self.hospitals_evaluation[hosp_name], start=1):
                 print(f"\tRound {round_idx}:\tLoss: {loss:.3f} - Accuracy: {acc:.3f}")
-        # Uncomment if you want to disconnect and exit:
-        # sys.exit(0)
+
+        print("Contract is CLOSED. Cancelling current tasks...")
+        
+        # Cancelling current task
+        if hasattr(self, "task") and self.task is not None:
+            self.task.cancel()
 
     def start_event(self):
         print("Hello hospital " + self.hospital_name + " !!!")
@@ -223,6 +227,10 @@ class Collaborator:
             self.hospitals[_hospital_name].model.set_weights(aggregated_weights)
 
     async def main(self):
+
+        # Saving current task in case we need to cancel it
+        self.task = asyncio.current_task()  
+
         # Subscribe to the "CloseState" event and set up its alert callback
         self.contract_events.subscribe("CloseState", self.closeState_alert, delay=0.5)
 
@@ -266,6 +274,10 @@ class Collaborator:
         round_idx = 0
         fed_dict = {}
         while True:
+            
+            #waiting, contract might have been closed
+            await asyncio.sleep(5) 
+
             print("Start round loop ...")
             fed_dict = self.round_loop(round_idx, fed_dict, file_name)
 
