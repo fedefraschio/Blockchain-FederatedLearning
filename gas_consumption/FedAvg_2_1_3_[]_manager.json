@@ -1,1 +1,1 @@
-{"deploy_mocks_fee": 3066295, "open_blockchain_fee": 91948, "add_collaborator_fee": 177795, "send_aggregated_weights_fee": [66693, 71173], "send_model_fee": 211228, "change_state_fee": 272872}
+{"deploy_mocks_fee": 2726461, "open_blockchain_fee": 45979, "add_collaborator_fee": 177771, "send_aggregated_weights_fee": [114341, 71173], "send_model_fee": 211334, "change_state_fee": 165785}

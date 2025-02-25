@@ -37,7 +37,11 @@ contract_events = FL_contract.events
 hospitals = get_hospitals()
 
 # Choose the initial role via a command-line argument or configuration.
-# Usage: brownie run .\scripts\node.py <hospital_name> [aggregator] --network fl-local
+# For example: python node.py aggregator
+
+if len(sys.argv) != 6 and len(sys.argv) != 7:
+    raise ValueError("Invalid number of arguments")
+
 if len(sys.argv) > 1 and sys.argv[4].lower() == "aggregator":
     initial_role = "aggregator"
 else:
@@ -45,9 +49,8 @@ else:
 
 hospital_name = sys.argv[3]
 
-# -----------------------
-# Aggregator-specific logic
-# -----------------------
+hospital_name = sys.argv[3]
+
 async def aggregator_mode():
     print(">>> Running as Aggregator")
 
@@ -82,19 +85,14 @@ async def collaborator_mode():
 async def watch_for_role_transfer():
     # This function listens for a blockchain (or other) event
     # that tells this node it should become the aggregator.
-    coroutine_transfer = contract_events.listen("NewAggregatorElected")
-    await coroutine_transfer
-    aggregator = FL_contract.get_aggregator({"from": hospitals[hospital_name].address})
-
-    ### THINGS TO DO: 
-    # - Problema con i ruoli?
-    # - I pesi vengono sovrascritti dai nuovi o si ripararte dai vecchi?
-    personal_address = hospitals[hospital_name].address
-    if FL_contract.isAggregator(personal_address, {"from": hospitals[hospital_name].address}):
-        return "aggregator"
-    else:
-        return "collaborator"
-
+    # For example, you might subscribe to an event "AggregatorRoleTransfer"
+    # and check if the new aggregator address matches this node's address.
+    # Here, we simply simulate an event after a delay.
+    await asyncio.sleep(15)  # simulate waiting for the event
+    # In a real implementation, return a value or set a flag.
+    print(">>> Received event: become aggregator")
+    return "aggregator"
+'''
 # -----------------------
 # Main node logic that manages role switching
 # -----------------------
@@ -108,35 +106,7 @@ async def node_main(initial_role: str):
             await aggregator_mode()
             role = "collaborator"
         else:
-            # In collaborator mode, run the collaborator task concurrently with a watcher.
-            # It does not block execution.
-            # It returns a task object that represents the running coroutine.
-            collab_task = asyncio.create_task(collaborator_mode())
-            role_watcher = asyncio.create_task(watch_for_role_transfer())
-
-            # Wait until one of the tasks finishes.
-            # 'done' will contain the completed task(s), and 'pending' will contain the ones still running.
-            done, pending = await asyncio.wait(
-                [collab_task, role_watcher],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-
-
-            if role_watcher in done:
-                # The node is being signaled to switch to aggregator mode.
-                role = role_watcher.result()  # expected to be "aggregator"
-                # Optionally cancel the collaborator work if it’s still running:
-                for task in pending:
-                    task.cancel()
-            else:
-                ## DEBUG
-                print("Result of collab_task")
-                print(collab_task.result())
-
-
-                # Otherwise, keep being a collaborator (or perform other logic).
-                role = "collaborator"
-        
+            await collaborator_mode()
 
         # Optionally, you can add a break condition (e.g., when FL is complete).
         # For this example, we let it run indefinitely.
