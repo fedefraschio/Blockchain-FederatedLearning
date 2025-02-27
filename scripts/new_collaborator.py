@@ -120,8 +120,34 @@ class Collaborator:
         fl_compile_info = json.loads(decoded_compile_info)
         self.hospitals[self.hospital_name].compile_info = fl_compile_info
 
+        ### TEST ############
+        """
+        print("Trying to retrieve old aggregated weights...")
+        retrieve_aggregated_weights_tx = self.FL_contract.retrieve_aggregated_weights(
+            {"from": self.hospitals[self.hospital_name].address}
+        )
+        print(retrieve_aggregated_weights_tx)
+        # Optionally record gas usage:
+        # self.gas_fee_collab[_hospital_name]['retrieve_fee'].append(retrieve_aggregated_weights_tx.gas_used)
+        # retrieve_aggregated_weights_tx.wait(1)
+        weight_hash = decode_utf8(retrieve_aggregated_weights_tx, view=True)
+
+        # Download the aggregated weights from IPFS
+        start_time = time.time()
+        aggregated_weights_encoded = self.IPFS_client.cat(weight_hash)
+        print("IPFS 'cat' time: ", str(time.time() - start_time))
+        aggregated_weights = weights_decoding(aggregated_weights_encoded)
+        """
+        #################
+
         # Compile the model with the received compile information
         self.hospitals[self.hospital_name].model.compile(**self.hospitals[self.hospital_name].compile_info)
+        
+        """
+        if int(str(aggregated_weights), 16) != 0: ########## 
+            print("Restore weights from the previous FL round")
+            self.hospitals[self.hospital_name].model.set_weights(aggregated_weights) ########
+        """
 
     def round_loop(self, round_idx, fed_dict, file_name):
         if self.hospital_name not in fed_dict:

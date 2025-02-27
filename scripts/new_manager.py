@@ -29,7 +29,8 @@ sys.path.insert(0, dir_path)
 
 class Manager:
     def __init__(self):
-        # Initialization flag
+        # Initialization flag used to perfore the check and retirevel of contract weights, 
+        # if present, just once
         self.first_run = True
 
         # Connect to IPFS and Blockchain
@@ -137,8 +138,9 @@ class Manager:
         # For testing purposes, we use the averaged weights as the aggregated weights
         aggregated_weights = averaged_weights
 
-        ###### TEST ######
-        # 
+        # We check is the contract variable "aggregated weights" has some weights:
+        # - If empty --> First Round ever, nothing to retrieve
+        # - If something --> Aggregator before has loaded its weights
         aggregated_weights_before = self.FL_contract.retrieve_aggregated_weights({"from": self.manager})
         if int(str(aggregated_weights_before), 16) != 0  and self.get_previous_weigths == False:
             print("Getting aggregated weights previous aggregator")
@@ -149,8 +151,7 @@ class Manager:
             aggregated_weights_encoded = self.IPFS_client.cat(weight_hash)
             print("IPFS 'cat' time: ", str(time.time() - start_time))
             aggregated_weights = weights_decoding(aggregated_weights_encoded)
-            self.get_previous_weigths = True
-        ###### #### ######
+        self.get_previous_weigths = True
 
         # Upload the aggregated weights to IPFS
         aggregated_weights_bytes = weights_encoding(aggregated_weights)

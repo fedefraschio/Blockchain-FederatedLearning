@@ -23,7 +23,7 @@ LABELS_ALZ = ["NonDemented", "VeryMildDemented", "MildDemented", "ModerateDement
 LABELS_TUMOR = ["glioma", "meningioma", "notumor", "pituitary"]
 
 # Train constants
-NUM_ROUNDS = 2
+NUM_ROUNDS = 4
 NUM_EPOCHS = 1
 BATCH_SIZE = 32
 
