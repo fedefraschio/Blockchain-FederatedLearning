@@ -301,7 +301,7 @@ class Collaborator:
         fed_dict = {}
         while True:
             
-            #waiting, contract might have been closed
+            # waiting, contract might have been closed
             await asyncio.sleep(5) 
 
             print("Start round loop ...")

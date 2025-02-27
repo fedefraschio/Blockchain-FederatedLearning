@@ -85,9 +85,6 @@ async def watch_for_role_transfer():
     await coroutine_transfer
     aggregator = FL_contract.get_aggregator({"from": hospitals[hospital_name].address})
 
-    ### THINGS TO DO: 
-    # - Problema con i ruoli?
-    # - I pesi vengono sovrascritti dai nuovi o si ripararte dai vecchi?
     personal_address = hospitals[hospital_name].address
     if FL_contract.isAggregator(personal_address, {"from": hospitals[hospital_name].address}):
         return "aggregator"
@@ -100,14 +97,14 @@ async def watch_for_role_transfer():
 
 async def node_main(initial_role: str):
     role = initial_role
-    # Run forever (or for the number of rounds you need)
+    # Run forever (or for the number of rounds we need)
     while True:
         if role == "aggregator":
             # Run aggregator tasks.
             await aggregator_mode()
-            # After finishing a round, you might decide to pass the role.
-            # (For example, your aggregator routine could have sent a blockchain event that
-            # tells another node to become aggregator. Your node, after finishing,
+            # After finishing a round, we might decide to pass the role.
+            # (For example, the aggregator routine could have sent a blockchain event that
+            # tells another node to become aggregator. The node, after finishing,
             # could choose to become a collaborator.)
             role = "collaborator"
         else:
@@ -141,7 +138,7 @@ async def node_main(initial_role: str):
                 role = "collaborator"
         
 
-        # Optionally, you can add a break condition (e.g., when FL is complete).
+        # Optionally, we can add a break condition (e.g., when FL is complete).
         # For this example, we let it run indefinitely.
         print(f"Switching role; current role is now '{role}'\n")
 
