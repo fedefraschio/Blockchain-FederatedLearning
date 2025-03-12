@@ -87,11 +87,8 @@ class Collaborator:
             for round_idx, (loss, acc) in enumerate(self.hospitals_evaluation[hosp_name], start=1):
                 print(f"\tRound {round_idx}:\tLoss: {loss:.3f} - Accuracy: {acc:.3f}")
 
-        print("Contract is CLOSED. Cancelling current tasks...")
+        print("Contract is CLOSED.")
         
-        # Cancelling current task
-        if hasattr(self, "task") and self.task is not None:
-            self.task.cancel()
 
     def start_event(self):
         print("Hello hospital " + self.hospital_name + " !!!")
@@ -138,21 +135,29 @@ class Collaborator:
         # Checking if hash is valid
         if not weight_hash or not isinstance(weight_hash, str) or len(weight_hash) < 10:
             print("Invalid IPFS hash received! Skipping initial weights setup.")
-            return  # If not valid, skipping initial weights setup
+        else:
 
-        print("Found previously aggregated weigths. I'm gonna set them as initial weigths.")
+            print("Found previously aggregated weigths. I'm gonna set them as initial weigths.")
 
-        # Download the aggregated weights from IPFS
-        start_time = time.time()
-        initial_weights_encoded = self.IPFS_client.cat(weight_hash)
-        print("IPFS 'cat' time: ", str(time.time() - start_time))
-        initial_weights = weights_decoding(initial_weights_encoded)
+            # Download the aggregated weights from IPFS
+            start_time = time.time()
+            initial_weights_encoded = self.IPFS_client.cat(weight_hash)
+            print("IPFS 'cat' time: ", str(time.time() - start_time))
+            initial_weights = weights_decoding(initial_weights_encoded)
 
-        self.hospitals[self.hospital_name].model.build((None, WIDTH, HEIGHT, DEPTH))
+            self.hospitals[self.hospital_name].model.build((None, WIDTH, HEIGHT, DEPTH))
 
 
-        self.hospitals[self.hospital_name].model.set_weights(initial_weights)
-        print("Initial weigths of model have been set.")
+            self.hospitals[self.hospital_name].model.set_weights(initial_weights)
+            print("Initial weigths of model have been set.")
+
+        ready_for_learning_tx = self.FL_contract.ready_for_learning(
+            {"from": self.hospitals[self.hospital_name].address}
+        )
+        self.gas_fee_collab[self.hospital_name]['model_start_fee'] += ready_for_learning_tx.gas_used
+        ready_for_learning_tx.wait(1)
+        print("I'm ready for learning")
+
 
 
 
@@ -210,6 +215,11 @@ class Collaborator:
         print(f'Accuracy: {accuracy_value:.3f}\tMacro-F1: {f1_value:.3f}')
         print()
         print_line("*")
+
+        # Hospital evaluation (COMMENT this to speed things up)
+        self.hospitals_evaluation[_hospital_name].append(
+           self.hospitals[_hospital_name].model.evaluate(self.test_dataset)
+        )
 
         # Get the model weights
         self.hospitals[_hospital_name].weights = self.hospitals[_hospital_name].model.get_weights()

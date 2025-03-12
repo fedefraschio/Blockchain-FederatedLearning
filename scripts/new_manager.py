@@ -224,9 +224,18 @@ class Manager:
         print('\n' * 2)
 
         # Synchronization pause
-        waiting_time=15
-        print("Waiting time: " + str(waiting_time))
-        time.sleep(waiting_time)
+        # waiting_time=15
+        # print("Waiting time: " + str(waiting_time))
+        # time.sleep(waiting_time)
+
+        print("Awaiting for collaborators to be ready for LEARNING phase")
+        coroutine_learning = self.contract_events.listen("EveryCollaboratorHasCalledOnlyOnce", timeout=TIMEOUT_SECONDS)
+        coroutine_result_learning = await coroutine_learning
+        assert_coroutine_result(coroutine_result_learning, "ready_for_learning")
+        print("I waited ready_for_learning")
+        print_line("*")
+        print('\n' * 2)
+
 
         # Change the contract state to LEARNING
         print('Changing the contract state to LEARNING')
@@ -235,7 +244,7 @@ class Manager:
         learning_tx.wait(1)
         print_line("*")
         print('\n' * 2)
-
+ 
         # Start the federated learning rounds
         for round in range(NUM_ROUNDS):
             print(f"\t\tFL ROUND {round + 1}...")

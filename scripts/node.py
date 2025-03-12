@@ -125,7 +125,7 @@ async def node_main(initial_role: str):
             )
 
             #waiting for every running process to end before proceding
-            time.sleep(6) 
+            time.sleep(10) 
 
             if role_watcher in done:
                 # The node is being signaled to switch to aggregator mode.
