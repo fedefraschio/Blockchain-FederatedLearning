@@ -123,6 +123,39 @@ class Collaborator:
         # Compile the model with the received compile information
         self.hospitals[self.hospital_name].model.compile(**self.hospitals[self.hospital_name].compile_info)
 
+        # Download initial weights if available
+        # Retrieve the IPFS hash of the initial weights from the Blockchain
+        retrieve_initial_weights_tx = self.FL_contract.retrieve_initial_weights(
+            {"from": self.hospitals[self.hospital_name].address}
+        )
+        self.gas_fee_collab[self.hospital_name]['model_start_fee'] += retrieve_initial_weights_tx.gas_used
+        retrieve_initial_weights_tx.wait(1)
+
+        weight_hash = decode_utf8(retrieve_initial_weights_tx)
+
+        print(f"Initial weights hash: {repr(weight_hash)}")  # Showing received hash
+
+        # Checking if hash is valid
+        if not weight_hash or not isinstance(weight_hash, str) or len(weight_hash) < 10:
+            print("Invalid IPFS hash received! Skipping initial weights setup.")
+            return  # If not valid, skipping initial weights setup
+
+        print("Found previously aggregated weigths. I'm gonna set them as initial weigths.")
+
+        # Download the aggregated weights from IPFS
+        start_time = time.time()
+        initial_weights_encoded = self.IPFS_client.cat(weight_hash)
+        print("IPFS 'cat' time: ", str(time.time() - start_time))
+        initial_weights = weights_decoding(initial_weights_encoded)
+
+        self.hospitals[self.hospital_name].model.build((None, WIDTH, HEIGHT, DEPTH))
+
+
+        self.hospitals[self.hospital_name].model.set_weights(initial_weights)
+        print("Initial weigths of model have been set.")
+
+
+
     def round_loop(self, round_idx, fed_dict, file_name):
         if self.hospital_name not in fed_dict:
             fed_dict[self.hospital_name] = {}
@@ -276,7 +309,7 @@ class Collaborator:
         while True:
             
             #waiting, contract might have been closed
-            await asyncio.sleep(5) 
+            await asyncio.sleep(5)   # or time.sleep() ?
 
             print("Start round loop ...")
             fed_dict = self.round_loop(round_idx, fed_dict, file_name)

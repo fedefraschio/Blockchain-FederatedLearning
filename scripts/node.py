@@ -124,6 +124,8 @@ async def node_main(initial_role: str):
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
+            #waiting for every running process to end before proceding
+            time.sleep(6) 
 
             if role_watcher in done:
                 # The node is being signaled to switch to aggregator mode.

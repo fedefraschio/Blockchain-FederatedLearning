@@ -137,21 +137,6 @@ class Manager:
         # For testing purposes, we use the averaged weights as the aggregated weights
         aggregated_weights = averaged_weights
 
-        ###### TEST ######
-        # 
-        aggregated_weights_before = self.FL_contract.retrieve_aggregated_weights({"from": self.manager})
-        if int(str(aggregated_weights_before), 16) != 0  and self.get_previous_weigths == False:
-            print("Getting aggregated weights previous aggregator")
-            weight_hash = decode_utf8(aggregated_weights_before, view=True)
-
-            # Download the aggregated weights from IPFS
-            start_time = time.time()
-            aggregated_weights_encoded = self.IPFS_client.cat(weight_hash)
-            print("IPFS 'cat' time: ", str(time.time() - start_time))
-            aggregated_weights = weights_decoding(aggregated_weights_encoded)
-            self.get_previous_weigths = True
-        ###### #### ######
-
         # Upload the aggregated weights to IPFS
         aggregated_weights_bytes = weights_encoding(aggregated_weights)
 
@@ -167,55 +152,7 @@ class Manager:
         f1_value = self.test_information(aggregated_weights)
         return f1_value
 
-    async def starting(self):
-        """Uploads model/compile info, starts the contract and waits for collaborators to retrieve the data."""
-        print("I am the Manager")
-        # Upload model
-        encoded_model = get_encoded_model(NUM_CLASSES, "FedProx")
-        print("after get_encoded_model")
-        transaction_options = {"from": self.manager, "gas_limit": 2000000}
-        send_model_tx = self.FL_contract.send_model(encoded_model, transaction_options)
-        send_model_tx.wait(1)
-        print(send_model_tx.events)
-
-        # Upload compile information
-        encoded_compile_info = get_encoded_compile_info()
-        send_compile_info_tx = self.FL_contract.send_compile_info(
-            encoded_compile_info, {"from": self.manager}
-        )
-        send_compile_info_tx.wait(1)
-        print(send_compile_info_tx.events)
-
-        # Print model details
-        self.model_test.summary()
-
-        # Change the contract state to START
-        start_tx = self.FL_contract.start({"from": self.manager})
-        start_tx.wait(1)
-        print(start_tx.events)
-
-        # Wait for collaborators to retrieve the model and compile information
-        coroutine_RM = self.contract_events.listen("EveryCollaboratorHasCalledOnlyOnce", timeout=TIMEOUT_SECONDS)
-        print("COROUTINE: waiting 'retrieve_model'\n", coroutine_RM)
-        coroutine_result_PM = await coroutine_RM
-        assert_coroutine_result(coroutine_result_PM, "retrieve_model")
-        print("I waited retrieve_model")
-        print_line("_")
-
-        coroutine_RCI = self.contract_events.listen("EveryCollaboratorHasCalledOnlyOnce", timeout=TIMEOUT_SECONDS)
-        print("COROUTINE: waiting 'retrieve_compile_info'\n", coroutine_RCI)
-        coroutine_result_RCI = await coroutine_RCI
-        assert_coroutine_result(coroutine_result_RCI, "retrieve_compile_info")
-        print("I waited retrieve_compile_info")
-        print_line("_")
-
-        # Synchronization pause
-        time.sleep(10)
-
-        # Change the contract state to LEARNING
-        learning_tx = self.FL_contract.learning({"from": self.manager})
-        learning_tx.wait(1)
-
+        
     async def main(self):
         """Main asynchronous flow of the Manager."""
         best_f1 = 0.0
@@ -277,8 +214,19 @@ class Manager:
         print_line("*")
         print('\n' * 2)
 
+        # Wait for collaborators to retrieve initial weights
+        print('Awaiting for the collaborators to retrieve initial weights...')
+        coroutine_RIW = self.contract_events.listen("EveryCollaboratorHasCalledOnlyOnce", timeout=TIMEOUT_SECONDS)
+        coroutine_result_RIW = await coroutine_RIW
+        assert_coroutine_result(coroutine_result_RIW, "retrieve_initial_weights")
+        print("I waited retrieve_initial_weights")
+        print_line("*")
+        print('\n' * 2)
+
         # Synchronization pause
-        time.sleep(10)
+        waiting_time=15
+        print("Waiting time: " + str(waiting_time))
+        time.sleep(waiting_time)
 
         # Change the contract state to LEARNING
         print('Changing the contract state to LEARNING')
@@ -306,11 +254,13 @@ class Manager:
                 best_model = self.model_test
             print_line("*")
 
+
         # Close the blockchain process at the end of Federated Learning
         close_tx = self.FL_contract.close({"from": self.manager})
         self.gas_fee_manager['change_state_fee'] += close_tx.gas_used
         close_tx.wait(1)
 
+        # Metto prima electNewAggregator o prima close?
         # Pass role to the other collaborator
         self.FL_contract.electNewAggregator({"from": self.manager})
 

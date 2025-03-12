@@ -223,6 +223,17 @@ contract FederatedLearning is AccessControl {
         return aggregated_weights;
     }
 
+    // Function that returns the previously aggregated weigths during start time
+    function retrieve_initial_weights()
+        public
+        onlyAuthorized
+        everyCollaboratorHasCalledOnce("retrieve_initial_weights")
+        returns (bytes memory)
+    {
+        require(fl_state == FL_STATE.START, "Not in START state");
+        return aggregated_weights;
+    }
+
     // Function to reset the aggregated weights for a new round
     function reset_aggregated_weights() public onlyAggregator {
         for (uint256 i = 0; i < collaborators.length; i++) {
@@ -242,6 +253,7 @@ contract FederatedLearning is AccessControl {
             hasCalledFunction[collaborators[i]]["send_weights"] = false;
             hasCalledFunction[collaborators[i]]["aggregated_weights"] = false;
             hasCalledFunction[collaborators[i]]["retrieve_compile_info"] = false;
+            hasCalledFunction[collaborators[i]]["retrieve_initial_weights"] = false;
             hasReportedTimeout[collaborators[i]] = false;
         }
 
@@ -250,6 +262,7 @@ contract FederatedLearning is AccessControl {
         everyoneHasCalled["send_weights"] = 0;
         everyoneHasCalled["aggregated_weights"] = 0;
         everyoneHasCalled["retrieve_compile_info"] = 0;
+        everyoneHasCalled["retrieve_initial_weights"] = 0;
         timeoutReportCount = 0;
 
         // Resetting state variables
