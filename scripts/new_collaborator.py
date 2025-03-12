@@ -9,6 +9,7 @@ import numpy as np
 import tensorflow as tf
 from numpy import require
 from tensorflow.keras.models import model_from_json
+from sklearn.metrics import f1_score, accuracy_score  # Ensure these are imported
 
 # Brownie and IPFS imports
 from brownie import FederatedLearning
@@ -197,12 +198,16 @@ class Collaborator:
         results = self.hospitals[_hospital_name].model.predict(self.test_dataset.map(lambda x, y: x))
         y_predicted = list(map(np.argmax, results))
 
-        from sklearn.metrics import f1_score, accuracy_score  # Ensure these are imported
         f1_value = f1_score(labels_y_test, y_predicted, average='macro')
         accuracy_value = accuracy_score(labels_y_test, y_predicted)
         print(f'Accuracy: {accuracy_value:.3f}\tMacro-F1: {f1_value:.3f}')
         print()
         print_line("*")
+
+        # Hospital evaluation (COMMENT this to speed things up)
+        self.hospitals_evaluation[_hospital_name].append(
+           self.hospitals[_hospital_name].model.evaluate(self.test_dataset)
+        )
 
         # Get the model weights
         self.hospitals[_hospital_name].weights = self.hospitals[_hospital_name].model.get_weights()

@@ -315,12 +315,12 @@ class Manager:
         # Pass role to the other collaborator
         self.FL_contract.electNewAggregator({"from": self.manager})
 
-        #####network.disconnect()
+        ####network.disconnect()
 
         # Save gas consumption data
         with open(f"gas_consumption/{self.file_name}_manager.json", 'w') as json_file:
             json.dump(self.gas_fee_manager, json_file)
 
         # Optionally, you might want to save the best model here
-        # sys.exit(0)  # Uncomment if you want the script to exit
+        ####sys.exit(0)  # Uncomment if you want the script to exit
 
