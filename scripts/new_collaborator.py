@@ -9,14 +9,15 @@ import numpy as np
 import tensorflow as tf
 from numpy import require
 from tensorflow.keras.models import model_from_json
+from sklearn.metrics import f1_score, accuracy_score 
 
 # Brownie and IPFS imports
 from brownie import FederatedLearning
 import ipfshttpclient
 
-# Utility functions and constants (adjust the imports as needed)
+# Utility functions and constants
 from utils_simulation import get_hospitals, print_line, set_reproducibility, round_out_of_battery, device_out_of_battery, load_dataset
-from utils_collaborator import *  # (import only what you need)
+from utils_collaborator import *
 from fedAvg import FedAvg
 from fedProx import FedProx
 from constants import *
@@ -25,14 +26,14 @@ from constants import *
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 set_reproducibility()
 
-# Ensure the directory containing this script is in sys.path
+# Ensure the directory containing the script is in sys.path
 dir_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, dir_path)
 
 
 class Collaborator:
     def __init__(self, hospital_name, out_of_battery=False, network=None):
-        # Instead of reading sys.argv directly, use the passed parameter:
+        # Instead of reading sys.argv directly, we use the passed parameter:
         self.hospital_name = hospital_name
         
         # Retrieve hospitals and load dataset
@@ -44,12 +45,6 @@ class Collaborator:
         self.IPFS_client = ipfshttpclient.connect()
         self.FL_contract = FederatedLearning[-1]
         self.contract_events = self.FL_contract.events
-
-        # Process command-line arguments
-        #if len(sys.argv) < 6:
-        #    print("Usage: collaborator_parallel.py hospital_name [out_of_battery] --network network_name")
-        #    sys.exit(1)
-        #self.hospital_name = sys.argv[3]
 
         # Initialize evaluation storage for this collaborator
         self.hospitals_evaluation = {self.hospital_name: []}
@@ -79,9 +74,11 @@ class Collaborator:
             }
         }
 
+
     def closeState_alert(self, event):
         print("The FL Blockchain has been CLOSED\n")
         print("RESULTS - Hospitals Performance Evaluation through Federated Learning...")
+        
         for hosp_name in self.hospitals_evaluation:
             print(f"{hosp_name}:")
             for round_idx, (loss, acc) in enumerate(self.hospitals_evaluation[hosp_name], start=1):
@@ -127,30 +124,28 @@ class Collaborator:
         )
         self.gas_fee_collab[self.hospital_name]['model_start_fee'] += retrieve_initial_weights_tx.gas_used
         retrieve_initial_weights_tx.wait(1)
-
         weight_hash = decode_utf8(retrieve_initial_weights_tx)
-
         print(f"Initial weights hash: {repr(weight_hash)}")  # Showing received hash
 
-        # Checking if hash is valid
+        # Checking if hash is valid:
+        # - Valid hash = There are previously aggregated weigths
+        # - Invalid hash = This is the first round, no aggregated weigths are present
         if not weight_hash or not isinstance(weight_hash, str) or len(weight_hash) < 10:
             print("Invalid IPFS hash received! Skipping initial weights setup.")
         else:
-
             print("Found previously aggregated weigths. I'm gonna set them as initial weigths.")
 
             # Download the aggregated weights from IPFS
             start_time = time.time()
             initial_weights_encoded = self.IPFS_client.cat(weight_hash)
             print("IPFS 'cat' time: ", str(time.time() - start_time))
+
             initial_weights = weights_decoding(initial_weights_encoded)
-
             self.hospitals[self.hospital_name].model.build((None, WIDTH, HEIGHT, DEPTH))
-
-
             self.hospitals[self.hospital_name].model.set_weights(initial_weights)
             print("Initial weigths of model have been set.")
 
+        # Once the aggregated_weight have been set, each Collaborator specifies that it is ready for the Learning phase
         ready_for_learning_tx = self.FL_contract.ready_for_learning(
             {"from": self.hospitals[self.hospital_name].address}
         )
@@ -159,9 +154,8 @@ class Collaborator:
         print("I'm ready for learning")
 
 
-
-
     def round_loop(self, round_idx, fed_dict, file_name):
+        # Training process for each Collaborator
         if self.hospital_name not in fed_dict:
             fed_dict[self.hospital_name] = {}
         if round_idx >= self.ROUND_BATTERY and self.hospital_name in self.DEVICES_OUT_OF_BATTERY:
@@ -176,6 +170,7 @@ class Collaborator:
             json.dump(fed_dict, json_file)
         return fed_dict
 
+
     def aggregatedWeightsReady_event(self, round_idx):
         if self.hospital_name in self.DEVICES_OUT_OF_BATTERY and (round_idx + 1) >= self.ROUND_BATTERY:
             return
@@ -183,6 +178,7 @@ class Collaborator:
         self.retrieving_aggreagted_weights(self.hospital_name)
         print("-" * 50)
         print()
+
 
     def fitting_model_and_loading_weights(self, _hospital_name, round_idx, fed_dict):
         train_dataset = self.hospital_dataset[_hospital_name]
@@ -208,8 +204,7 @@ class Collaborator:
         labels_y_test = list(self.test_dataset.unbatch().map(lambda x, y: tf.argmax(y)))
         results = self.hospitals[_hospital_name].model.predict(self.test_dataset.map(lambda x, y: x))
         y_predicted = list(map(np.argmax, results))
-
-        from sklearn.metrics import f1_score, accuracy_score  # Ensure these are imported
+        
         f1_value = f1_score(labels_y_test, y_predicted, average='macro')
         accuracy_value = accuracy_score(labels_y_test, y_predicted)
         print(f'Accuracy: {accuracy_value:.3f}\tMacro-F1: {f1_value:.3f}')
@@ -243,6 +238,7 @@ class Collaborator:
 
         return fed_dict
 
+
     def retrieving_aggreagted_weights(self, _hospital_name):
         # Retrieve the IPFS hash of the aggregated weights from the Blockchain
         retrieve_aggregated_weights_tx = self.FL_contract.retrieve_aggregated_weights(
@@ -269,8 +265,8 @@ class Collaborator:
             print("Restore weights setting the weights of aggregator: FEDAVG")
             self.hospitals[_hospital_name].model.set_weights(aggregated_weights)
 
-    async def main(self):
 
+    async def main(self):
         # Saving current task in case we need to cancel it
         self.task = asyncio.current_task()  
 
@@ -317,9 +313,8 @@ class Collaborator:
         round_idx = 0
         fed_dict = {}
         while True:
-            
             #waiting, contract might have been closed
-            await asyncio.sleep(5)   # or time.sleep() ?
+            await asyncio.sleep(5)
 
             print("Start round loop ...")
             fed_dict = self.round_loop(round_idx, fed_dict, file_name)
@@ -339,8 +334,7 @@ class Collaborator:
             self.aggregatedWeightsReady_event(round_idx)
             round_idx += 1
 
-            # Check if the aggregator role is changed
-                    # Check if the task was cancelled
+            # Check if the aggregator role has changed
             if asyncio.current_task().cancelled():
                 print(">>> Stopping collaborator execution.")
                 break

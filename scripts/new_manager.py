@@ -12,9 +12,9 @@ import ipfshttpclient
 from brownie import FederatedLearning, network, accounts
 from deploy_FL import get_account
 
-# Your utility modules and constants
+# Utility modules and constants
 from utils_simulation import get_X_test, get_y_test, print_line, set_reproducibility, get_hospitals, load_dataset
-from utils_manager import *  # (Ensure you import only what you need)
+from utils_manager import *
 from constants import *
 from sklearn.metrics import classification_report
 
@@ -22,10 +22,9 @@ from sklearn.metrics import classification_report
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 set_reproducibility()
 
-# Make sure the directory containing this script is in sys.path
+# To make sure that the directory containing the script is in sys.path
 dir_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, dir_path)
-
 
 class Manager:
     def __init__(self):
@@ -76,7 +75,7 @@ class Manager:
         self.labels = LABELS_ALZ if self.dataset == ALZHEIMER else LABELS_TUMOR
 
     def retrieve_information(self):
-        """Retrieves weights from collaborators via the blockchain and IPFS."""
+        # Retrieves weights hash from collaborators via the blockchain and IPFS.
         hospitals_addresses = self.FL_contract.get_collaborators({"from": self.manager})
         retrieved_weights_hash = {}
         for hospital_address in hospitals_addresses:
@@ -84,7 +83,7 @@ class Manager:
                 hospital_address, {"from": self.manager}
             )
         hospitals_weights = {}
-        # Retrieve weights from IPFS for each collaborator
+        # Retrieve weights, using hashes previously retrieved from IPFS, for each collaborator
         for hospital_address in retrieved_weights_hash:
             weights_hash = retrieved_weights_hash[hospital_address].decode("utf-8")
             if weights_hash == "":
@@ -101,7 +100,7 @@ class Manager:
         return weights_dim, hospitals_weights, hospitals_number, hospitals_addresses
 
     def test_information(self, aggregated_weights):
-        """Evaluates the global model using aggregated weights and prints the performance report."""
+        # Evaluates the global model using aggregated_weights, and prints the performance report.
         self.model_test.set_weights(aggregated_weights)
         results = self.model_test.predict(self.test_dataset.map(lambda x, y: x))
         y_predicted = list(map(np.argmax, results))
@@ -122,8 +121,9 @@ class Manager:
         return f1_value
 
     def federated_learning(self):
-        """Performs federated aggregation of collaborator weights and sends the aggregated weights."""
+        # Performs federated aggregation of collaborator weights and sends the aggregated weights.
         weights_dim, hospitals_weights, hospitals_number, hospitals_addresses = self.retrieve_information()
+        
         # Compute the average of the collaborators' weights
         averaged_weights = []
         for i in range(weights_dim):
@@ -131,17 +131,19 @@ class Manager:
             for hospital_address in hospitals_weights:
                 layer_weights.append(hospitals_weights[hospital_address][i])
             averaged_weights.append(sum(layer_weights) / hospitals_number)
+        
         # Convert each averaged layer into a NumPy array
         for i in range(len(averaged_weights)):
             averaged_weights[i] = np.array(averaged_weights[i])
+        
         # For testing purposes, we use the averaged weights as the aggregated weights
         aggregated_weights = averaged_weights
 
         # Upload the aggregated weights to IPFS
         aggregated_weights_bytes = weights_encoding(aggregated_weights)
-
         res = self.IPFS_client.add(aggregated_weights_bytes, pin=PIN_BOOL)
         hash_encoded = res["Hash"].encode("utf-8")
+        
         # Send the aggregated weights to the blockchain
         send_aggregated_weights_tx = self.FL_contract.send_aggregated_weights(
             hash_encoded, {"from": self.manager}
@@ -154,7 +156,7 @@ class Manager:
 
         
     async def main(self):
-        """Main asynchronous flow of the Manager."""
+        # Main asynchronous flow of the Manager.
         best_f1 = 0.0
         best_model = None
         self.gas_fee_manager['send_aggregated_weights_fee'] = []
@@ -223,11 +225,7 @@ class Manager:
         print_line("*")
         print('\n' * 2)
 
-        # Synchronization pause
-        # waiting_time=15
-        # print("Waiting time: " + str(waiting_time))
-        # time.sleep(waiting_time)
-
+        # Wait for collaborators to be ready for LEARNING phase
         print("Awaiting for collaborators to be ready for LEARNING phase")
         coroutine_learning = self.contract_events.listen("EveryCollaboratorHasCalledOnlyOnce", timeout=TIMEOUT_SECONDS)
         coroutine_result_learning = await coroutine_learning
@@ -269,16 +267,15 @@ class Manager:
         self.gas_fee_manager['change_state_fee'] += close_tx.gas_used
         close_tx.wait(1)
 
-        # Metto prima electNewAggregator o prima close?
         # Pass role to the other collaborator
         self.FL_contract.electNewAggregator({"from": self.manager})
 
-        #####network.disconnect()
+        # Used in case we want to disconnect the entire network
+        #network.disconnect() # Since we assume the FL continues with the next Aggregator, we commented this line
 
         # Save gas consumption data
         with open(f"gas_consumption/{self.file_name}_manager.json", 'w') as json_file:
             json.dump(self.gas_fee_manager, json_file)
 
-        # Optionally, you might want to save the best model here
         # sys.exit(0)  # Uncomment if you want the script to exit
 
