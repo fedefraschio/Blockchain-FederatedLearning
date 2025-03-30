@@ -16,7 +16,7 @@ import ipfshttpclient
 
 # Utility functions and constants (adjust the imports as needed)
 from utils_simulation import get_hospitals, print_line, set_reproducibility, round_out_of_battery, device_out_of_battery, load_dataset
-from utils_collaborator import *  # (import only what you need)
+from utils_collaborator import *  
 from fedAvg import FedAvg
 from fedProx import FedProx
 from constants import *
@@ -44,12 +44,6 @@ class Collaborator:
         self.IPFS_client = ipfshttpclient.connect()
         self.FL_contract = FederatedLearning[-1]
         self.contract_events = self.FL_contract.events
-
-        # Process command-line arguments
-        #if len(sys.argv) < 6:
-        #    print("Usage: collaborator_parallel.py hospital_name [out_of_battery] --network network_name")
-        #    sys.exit(1)
-        #self.hospital_name = sys.argv[3]
 
         # Initialize evaluation storage for this collaborator
         self.hospitals_evaluation = {self.hospital_name: []}
@@ -130,8 +124,6 @@ class Collaborator:
 
         weight_hash = decode_utf8(retrieve_initial_weights_tx)
 
-        print(f"Initial weights hash: {repr(weight_hash)}")  # Showing received hash
-
         # Checking if hash is valid
         if not weight_hash or not isinstance(weight_hash, str) or len(weight_hash) < 10:
             print("Invalid IPFS hash received! Skipping initial weights setup.")
@@ -155,9 +147,7 @@ class Collaborator:
             {"from": self.hospitals[self.hospital_name].address}
         )
         self.gas_fee_collab[self.hospital_name]['model_start_fee'] += ready_for_learning_tx.gas_used
-        ready_for_learning_tx.wait(1)
-        print("I'm ready for learning")
-
+        ready_for_learning_tx.wait(1) 
 
 
 
@@ -319,7 +309,7 @@ class Collaborator:
         while True:
             
             #waiting, contract might have been closed
-            await asyncio.sleep(5)   # or time.sleep() ?
+            await asyncio.sleep(5)
 
             print("Start round loop ...")
             fed_dict = self.round_loop(round_idx, fed_dict, file_name)
@@ -340,7 +330,7 @@ class Collaborator:
             round_idx += 1
 
             # Check if the aggregator role is changed
-                    # Check if the task was cancelled
+            # Check if the task was cancelled
             if asyncio.current_task().cancelled():
                 print(">>> Stopping collaborator execution.")
                 break

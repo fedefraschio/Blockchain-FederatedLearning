@@ -84,10 +84,6 @@ async def watch_for_role_transfer():
     coroutine_transfer = contract_events.listen("NewAggregatorElected")
     await coroutine_transfer
     aggregator = FL_contract.get_aggregator({"from": hospitals[hospital_name].address})
-
-    ### THINGS TO DO: 
-    # - Problema con i ruoli?
-    # - I pesi vengono sovrascritti dai nuovi o si ripararte dai vecchi?
     personal_address = hospitals[hospital_name].address
     if FL_contract.isAggregator(personal_address, {"from": hospitals[hospital_name].address}):
         return "aggregator"
@@ -105,15 +101,12 @@ async def node_main(initial_role: str):
         if role == "aggregator":
             # Run aggregator tasks.
             await aggregator_mode()
-            # After finishing a round, you might decide to pass the role.
-            # (For example, your aggregator routine could have sent a blockchain event that
-            # tells another node to become aggregator. Your node, after finishing,
-            # could choose to become a collaborator.)
+            # After finishing a round as an aggregator, the node becomes a collaborator
             role = "collaborator"
         else:
             # In collaborator mode, run the collaborator task concurrently with a watcher.
-            # It does not block execution.
-            # It returns a task object that represents the running coroutine.
+            # collaborator_mode() runs the collaborator tasks, 
+            # watch_for_role_transfer() is responsible for transferring the aggregator role to the next aggregator
             collab_task = asyncio.create_task(collaborator_mode())
             role_watcher = asyncio.create_task(watch_for_role_transfer())
 
@@ -134,17 +127,12 @@ async def node_main(initial_role: str):
                 for task in pending:
                     task.cancel()
             else:
-                ## DEBUG
-                print("Result of collab_task")
-                print(collab_task.result())
-
-
                 # Otherwise, keep being a collaborator (or perform other logic).
                 role = "collaborator"
         
 
         # Optionally, you can add a break condition (e.g., when FL is complete).
-        # For this example, we let it run indefinitely.
+        # For this simulation, we let it run indefinitely.
         print(f"Switching role; current role is now '{role}'\n")
 
 # -----------------------

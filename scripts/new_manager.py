@@ -14,7 +14,7 @@ from deploy_FL import get_account
 
 # Your utility modules and constants
 from utils_simulation import get_X_test, get_y_test, print_line, set_reproducibility, get_hospitals, load_dataset
-from utils_manager import *  # (Ensure you import only what you need)
+from utils_manager import * 
 from constants import *
 from sklearn.metrics import classification_report
 
@@ -223,11 +223,6 @@ class Manager:
         print_line("*")
         print('\n' * 2)
 
-        # Synchronization pause
-        # waiting_time=15
-        # print("Waiting time: " + str(waiting_time))
-        # time.sleep(waiting_time)
-
         print("Awaiting for collaborators to be ready for LEARNING phase")
         coroutine_learning = self.contract_events.listen("EveryCollaboratorHasCalledOnlyOnce", timeout=TIMEOUT_SECONDS)
         coroutine_result_learning = await coroutine_learning
@@ -269,11 +264,8 @@ class Manager:
         self.gas_fee_manager['change_state_fee'] += close_tx.gas_used
         close_tx.wait(1)
 
-        # Metto prima electNewAggregator o prima close?
         # Pass role to the other collaborator
         self.FL_contract.electNewAggregator({"from": self.manager})
-
-        #####network.disconnect()
 
         # Save gas consumption data
         with open(f"gas_consumption/{self.file_name}_manager.json", 'w') as json_file:
