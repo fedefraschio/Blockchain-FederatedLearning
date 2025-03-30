@@ -29,9 +29,6 @@ sys.path.insert(0, dir_path)
 
 class Manager:
     def __init__(self):
-        # Initialization flag
-        self.first_run = True
-
         # Connect to IPFS and Blockchain
         self.IPFS_client = ipfshttpclient.connect()
         self.FL_contract = FederatedLearning[-1]
@@ -51,9 +48,6 @@ class Manager:
         self.hospitals = get_hospitals()
         self.hospital_dataset = load_dataset(self.hospitals)
         self.test_dataset = self.hospital_dataset['test']
-
-        # Ensure that the weights are retrieved just once from previous iteration
-        self.get_previous_weigths = False
 
         # Load extra configuration
         with open('devices_out_of_battery.pkl', 'rb') as file:
@@ -139,7 +133,6 @@ class Manager:
 
         # Upload the aggregated weights to IPFS
         aggregated_weights_bytes = weights_encoding(aggregated_weights)
-
         res = self.IPFS_client.add(aggregated_weights_bytes, pin=PIN_BOOL)
         hash_encoded = res["Hash"].encode("utf-8")
         # Send the aggregated weights to the blockchain
@@ -152,17 +145,60 @@ class Manager:
         f1_value = self.test_information(aggregated_weights)
         return f1_value
 
-        
+    async def starting(self):
+        """Uploads model/compile info, starts the contract and waits for collaborators to retrieve the data."""
+        print("I am the Manager")
+        # Upload model
+        encoded_model = get_encoded_model(NUM_CLASSES, "FedProx")
+        print("after get_encoded_model")
+        transaction_options = {"from": self.manager, "gas_limit": 2000000}
+        send_model_tx = self.FL_contract.send_model(encoded_model, transaction_options)
+        send_model_tx.wait(1)
+        print(send_model_tx.events)
+
+        # Upload compile information
+        encoded_compile_info = get_encoded_compile_info()
+        send_compile_info_tx = self.FL_contract.send_compile_info(
+            encoded_compile_info, {"from": self.manager}
+        )
+        send_compile_info_tx.wait(1)
+        print(send_compile_info_tx.events)
+
+        # Print model details
+        self.model_test.summary()
+
+        # Change the contract state to START
+        start_tx = self.FL_contract.start({"from": self.manager})
+        start_tx.wait(1)
+        print(start_tx.events)
+
+        # Wait for collaborators to retrieve the model and compile information
+        coroutine_RM = self.contract_events.listen("EveryCollaboratorHasCalledOnlyOnce", timeout=TIMEOUT_SECONDS)
+        print("COROUTINE: waiting 'retrieve_model'\n", coroutine_RM)
+        coroutine_result_PM = await coroutine_RM
+        assert_coroutine_result(coroutine_result_PM, "retrieve_model")
+        print("I waited retrieve_model")
+        print_line("_")
+
+        coroutine_RCI = self.contract_events.listen("EveryCollaboratorHasCalledOnlyOnce", timeout=TIMEOUT_SECONDS)
+        print("COROUTINE: waiting 'retrieve_compile_info'\n", coroutine_RCI)
+        coroutine_result_RCI = await coroutine_RCI
+        assert_coroutine_result(coroutine_result_RCI, "retrieve_compile_info")
+        print("I waited retrieve_compile_info")
+        print_line("_")
+
+        # Synchronization pause
+        time.sleep(10)
+
+        # Change the contract state to LEARNING
+        learning_tx = self.FL_contract.learning({"from": self.manager})
+        learning_tx.wait(1)
+
     async def main(self):
         """Main asynchronous flow of the Manager."""
         best_f1 = 0.0
         best_model = None
         self.gas_fee_manager['send_aggregated_weights_fee'] = []
-
-        # Ensure that the blockchain is open
-        open_tx = self.FL_contract.open({"from": self.manager})
-        self.gas_fee_manager['open_blockchain_fee'] += open_tx.gas_used
-        open_tx.wait(1)
 
         # Upload model and compile information on the Blockchain
         print('Uploading model and compile information on the Blockchain')
@@ -239,7 +275,7 @@ class Manager:
         learning_tx.wait(1)
         print_line("*")
         print('\n' * 2)
- 
+
         # Start the federated learning rounds
         for round in range(NUM_ROUNDS):
             print(f"\t\tFL ROUND {round + 1}...")
@@ -257,7 +293,6 @@ class Manager:
                 best_f1 = f1_value
                 best_model = self.model_test
             print_line("*")
-
 
         # Close the blockchain process at the end of Federated Learning
         close_tx = self.FL_contract.close({"from": self.manager})

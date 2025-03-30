@@ -80,12 +80,11 @@ class Collaborator:
             print(f"{hosp_name}:")
             for round_idx, (loss, acc) in enumerate(self.hospitals_evaluation[hosp_name], start=1):
                 print(f"\tRound {round_idx}:\tLoss: {loss:.3f} - Accuracy: {acc:.3f}")
-
-        print("Contract is CLOSED.")
-        
+        # Uncomment if you want to disconnect and exit:
+        # sys.exit(0)
 
     def start_event(self):
-        print("Hello hospital " + self.hospital_name + " !!!")
+        print("Hello hospital " + self.hospital_name + "!!")
 
         # Retrieve the model provided by the Manager
         retrieve_model_tx = self.FL_contract.retrieve_model(
@@ -206,10 +205,11 @@ class Collaborator:
         print()
         print_line("*")
 
-        # Hospital evaluation (COMMENT this to speed things up)
-        self.hospitals_evaluation[_hospital_name].append(
-           self.hospitals[_hospital_name].model.evaluate(self.test_dataset)
+        '''
+        hospitals_evaluation[_hospital_name].append(
+            hospitals[_hospital_name].model.evaluate(test_dataset)
         )
+        '''
 
         # Get the model weights
         self.hospitals[_hospital_name].weights = self.hospitals[_hospital_name].model.get_weights()
@@ -238,7 +238,7 @@ class Collaborator:
         retrieve_aggregated_weights_tx = self.FL_contract.retrieve_aggregated_weights(
             {"from": self.hospitals[_hospital_name].address}
         )
-        print(retrieve_aggregated_weights_tx)
+        #print(retrieve_aggregated_weights_tx)
         # Optionally record gas usage:
         # self.gas_fee_collab[_hospital_name]['retrieve_fee'].append(retrieve_aggregated_weights_tx.gas_used)
         # retrieve_aggregated_weights_tx.wait(1)
@@ -260,10 +260,6 @@ class Collaborator:
             self.hospitals[_hospital_name].model.set_weights(aggregated_weights)
 
     async def main(self):
-
-        # Saving current task in case we need to cancel it
-        self.task = asyncio.current_task()  
-
         # Subscribe to the "CloseState" event and set up its alert callback
         self.contract_events.subscribe("CloseState", self.closeState_alert, delay=0.5)
 

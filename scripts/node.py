@@ -28,31 +28,34 @@ import json
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 set_reproducibility()
-
-# Connect to IPFS and the Blockchain contract
-FL_contract = FederatedLearning[-1]
-contract_events = FL_contract.events
-
-# Retrieve hospitals and load dataset
-hospitals = get_hospitals()
+# -----------------------
+# Aggregator-specific logic
+# -----------------------
 
 # Choose the initial role via a command-line argument or configuration.
-# Usage: brownie run .\scripts\node.py <hospital_name> [aggregator] --network fl-local
+# For example: python node.py aggregator
+
+if len(sys.argv) != 6 and len(sys.argv) != 7:
+    raise ValueError("Invalid number of arguments")
+
 if len(sys.argv) > 1 and sys.argv[4].lower() == "aggregator":
     initial_role = "aggregator"
 else:
     initial_role = "collaborator"
 
+
 hospital_name = sys.argv[3]
 
-# -----------------------
-# Aggregator-specific logic
-# -----------------------
 async def aggregator_mode():
     print(">>> Running as Aggregator")
-
+    # Place here (or call) the asynchronous aggregator logic from your aggregator script.
+    # For example:
+    # - Send the model and compile info to the blockchain.
+    # - Wait for collaborators to retrieve them.
+    # - Wait for the collaborators to send back their weights.
+    # - Retrieve weights, aggregate them, and send back the aggregated weights.
+    # - After completing a round, signal role transfer on the blockchain.
     mgr = Manager()
-    
     await mgr.main()
     print(">>> Aggregator round complete; passing role to collaborator")
 
@@ -61,23 +64,19 @@ async def aggregator_mode():
 # -----------------------
 async def collaborator_mode():
     print(">>> Running as Collaborator")
-    
+    # Place here (or call) the asynchronous collaborator logic from your collaborator script.
+    # For example:
+    # - Listen for the START event, then retrieve model/compile info.
+    # - Train the model on local data.
+    # - Upload your weights and wait for aggregated weights.
     collab = Collaborator(hospital_name=hospital_name, out_of_battery=False, network=None)
-    
-    # Collaborator runs util the exception is raised, in that case, we handle the role changing
-    try:
-        await collab.main()  # This should support graceful stopping
-    except asyncio.CancelledError:
-        print(">>> Collaborator execution was cancelled")
-        print("My address is: " + str(hospitals[hospital_name].address))
-        print("The next aggregator will be: " + str(FL_contract.get_aggregator()))
-        print("All the collaborators are: " + str(FL_contract.get_collaborators()))
-        return
+    await collab.main()
     print(">>> Collaborator round complete; waiting to see if I become aggregator")
 
 # -----------------------
 # Role-transfer watcher
 # -----------------------
+'''
 async def watch_for_role_transfer():
     # This function listens for a blockchain (or other) event
     # that tells this node it should become the aggregator.
@@ -94,7 +93,7 @@ async def watch_for_role_transfer():
 # Main node logic that manages role switching
 # -----------------------
 
-async def node_main(initial_role: str):
+async def main(initial_role: str):
     role = initial_role
     # Run forever (or for the number of rounds you need)
     while True:
@@ -139,6 +138,8 @@ async def node_main(initial_role: str):
 # Entry point
 # -----------------------
 
+print('PRIMA------------------------------------------------')
 # Run the node main loop with asyncio.
-asyncio.run(node_main(initial_role))
+asyncio.run(main(initial_role))
+print('DOPO')
 

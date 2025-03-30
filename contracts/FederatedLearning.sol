@@ -8,9 +8,8 @@ import "./chainlink/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract FederatedLearning is AccessControl {
-    //using SafeMathChainlink for uint256; // l'overflow e l'underflow aritmetico sono gestiti automaticamente
     // Define a constant role for the aggregator
-    bytes32 public constant AGGREGATOR_ROLE = keccak256("AGGREGATOR_ROLE"); // NEW
+    bytes32 public constant AGGREGATOR_ROLE = keccak256("AGGREGATOR_ROLE");
     
     // Enumeration of federated learning states
     enum FL_STATE {
@@ -48,14 +47,14 @@ contract FederatedLearning is AccessControl {
     event CloseState();
     event EveryCollaboratorHasCalledOnlyOnce(string functionName);
     event AggregatedWeightsReady();
-    event RoundProceeded(); // NEW
-    event TimeoutReported(address reporter); // NEW
-    event NewAggregatorElected(); // NEW
+    event RoundProceeded();
+    event TimeoutReported(address reporter);
+    event NewAggregatorElected();
 
     // Constructor to initialize the contract
     constructor(uint256 _roundTimeout, uint256 _timeoutReportThreshold) {
         fl_state = FL_STATE.CLOSE; // Set initial state to CLOSE
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender); // Set admin role to th\e contract deployer
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender); // Set admin role to the contract deployer
         roundTimeout = _roundTimeout; // Set the round timeout duration
         timeoutReportThreshold = _timeoutReportThreshold; // Set the threshold for timeout reports
     }
@@ -178,7 +177,7 @@ contract FederatedLearning is AccessControl {
     ) public onlyAuthorized everyCollaboratorHasCalledOnce("send_weights") {
         require(fl_state == FL_STATE.LEARNING, "Not in LEARNING state");
         weights_len++;
-        require(weights_len <= collaborators.length); //// Prima era senza -1
+        require(weights_len <= collaborators.length);
         weights[msg.sender] = _weights;
     }
 
