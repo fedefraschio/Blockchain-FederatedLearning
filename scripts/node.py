@@ -10,8 +10,8 @@ sys.path.insert(0, dir_path)
 
 from utils_simulation import get_X_test, get_y_test, print_line, set_reproducibility, get_hospitals, load_dataset
 from utils_manager import *
-from new_manager import Manager
-from new_collaborator import Collaborator
+from manager import Manager
+from collaborator import Collaborator
 
 from brownie import FederatedLearning, network, accounts
 from deploy_FL import get_account
