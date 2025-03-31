@@ -12,9 +12,9 @@ import ipfshttpclient
 from brownie import FederatedLearning, network, accounts
 from deploy_FL import get_account
 
-# Your utility modules and constants
+# Utility modules and constants
 from utils_simulation import get_X_test, get_y_test, print_line, set_reproducibility, get_hospitals, load_dataset
-from utils_manager import *  # (Ensure you import only what you need)
+from utils_manager import *  
 from constants import *
 from sklearn.metrics import classification_report
 
@@ -22,7 +22,7 @@ from sklearn.metrics import classification_report
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 set_reproducibility()
 
-# Make sure the directory containing this script is in sys.path
+# To make sure the directory containing this script is in sys.path
 dir_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, dir_path)
 
@@ -76,7 +76,8 @@ class Manager:
         self.labels = LABELS_ALZ if self.dataset == ALZHEIMER else LABELS_TUMOR
 
     def retrieve_information(self):
-        """Retrieves weights from collaborators via the blockchain and IPFS."""
+        # Retrieve weights, using hashes previously retrieved from IPFS, for each collaborator
+
         hospitals_addresses = self.FL_contract.get_collaborators({"from": self.manager})
         retrieved_weights_hash = {}
         for hospital_address in hospitals_addresses:
@@ -101,7 +102,7 @@ class Manager:
         return weights_dim, hospitals_weights, hospitals_number, hospitals_addresses
 
     def test_information(self, aggregated_weights):
-        """Evaluates the global model using aggregated weights and prints the performance report."""
+        #Evaluates the global model using aggregated weights and prints the performance report.
         self.model_test.set_weights(aggregated_weights)
         results = self.model_test.predict(self.test_dataset.map(lambda x, y: x))
         y_predicted = list(map(np.argmax, results))
@@ -122,7 +123,7 @@ class Manager:
         return f1_value
 
     def federated_learning(self):
-        """Performs federated aggregation of collaborator weights and sends the aggregated weights."""
+        #Performs federated aggregation of collaborator weights and sends the aggregated weights.
         weights_dim, hospitals_weights, hospitals_number, hospitals_addresses = self.retrieve_information()
         # Compute the average of the collaborators' weights
         averaged_weights = []
@@ -154,7 +155,7 @@ class Manager:
 
         
     async def main(self):
-        """Main asynchronous flow of the Manager."""
+        #Main asynchronous flow of the Manager.
         best_f1 = 0.0
         best_model = None
         self.gas_fee_manager['send_aggregated_weights_fee'] = []
@@ -265,16 +266,15 @@ class Manager:
         self.gas_fee_manager['change_state_fee'] += close_tx.gas_used
         close_tx.wait(1)
 
-        # Metto prima electNewAggregator o prima close?
         # Pass role to the other collaborator
         self.FL_contract.electNewAggregator({"from": self.manager})
 
-        #####network.disconnect()
+        # Used in case we want to disconnect the entire network
+        #network.disconnect() # Since we assume the FL continues with the next Aggregator, we commented this line
 
         # Save gas consumption data
         with open(f"gas_consumption/{self.file_name}_manager.json", 'w') as json_file:
             json.dump(self.gas_fee_manager, json_file)
 
-        # Optionally, you might want to save the best model here
         # sys.exit(0)  # Uncomment if you want the script to exit
 

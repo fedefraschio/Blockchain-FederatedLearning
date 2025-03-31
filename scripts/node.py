@@ -64,11 +64,12 @@ async def collaborator_mode():
     
     collab = Collaborator(hospital_name=hospital_name, out_of_battery=False, network=None)
     
-    # Collaborator runs util the exception is raised, in that case, we handle the role changing
+    # Collaborator runs until the exception is raised, in that case, we handle the role changing
     try:
         await collab.main()  # This should support graceful stopping
     except asyncio.CancelledError:
         print(">>> Collaborator execution was cancelled")
+        # Once the Collaborator execution is cancelled, we need to see who is the next Aggregator
         print("My address is: " + str(hospitals[hospital_name].address))
         print("The next aggregator will be: " + str(FL_contract.get_aggregator()))
         print("All the collaborators are: " + str(FL_contract.get_collaborators()))
@@ -86,6 +87,7 @@ async def watch_for_role_transfer():
     aggregator = FL_contract.get_aggregator({"from": hospitals[hospital_name].address})
 
     personal_address = hospitals[hospital_name].address
+    # We need to check if this node is the new elected Aggregator
     if FL_contract.isAggregator(personal_address, {"from": hospitals[hospital_name].address}):
         return "aggregator"
     else:
@@ -97,19 +99,16 @@ async def watch_for_role_transfer():
 
 async def node_main(initial_role: str):
     role = initial_role
-    # Run forever (or for the number of rounds you need)
+    # Run forever (or for the number of rounds we need)
     while True:
         if role == "aggregator":
             # Run aggregator tasks.
             await aggregator_mode()
-            # After finishing a round, you might decide to pass the role.
-            # (For example, your aggregator routine could have sent a blockchain event that
-            # tells another node to become aggregator. Your node, after finishing,
-            # could choose to become a collaborator.)
+            # After finishing the specified number of rounds, the former Aggregator becomes Collaborator
             role = "collaborator"
         else:
-            # In collaborator mode, run the collaborator task concurrently with a watcher.
-            # It does not block execution.
+            # In collaborator mode, we run the collaborator task concurrently with a Watcher [watch_for_role_transfer()].
+            # This does not block execution
             # It returns a task object that represents the running coroutine.
             collab_task = asyncio.create_task(collaborator_mode())
             role_watcher = asyncio.create_task(watch_for_role_transfer())
@@ -126,28 +125,22 @@ async def node_main(initial_role: str):
 
             if role_watcher in done:
                 # The node is being signaled to switch to aggregator mode.
-                role = role_watcher.result()  # expected to be "aggregator"
+                role = role_watcher.result()  # expected to be "aggregator" if this node is the one elected
                 # Optionally cancel the collaborator work if it’s still running:
                 for task in pending:
                     task.cancel()
             else:
-                ## DEBUG
-                print("Result of collab_task")
-                print(collab_task.result())
-
-
                 # Otherwise, keep being a collaborator (or perform other logic).
                 role = "collaborator"
         
 
         # Optionally, you can add a break condition (e.g., when FL is complete).
-        # For this example, we let it run indefinitely.
+        # For this simulation, we let it run indefinitely.
         print(f"Switching role; current role is now '{role}'\n")
 
 # -----------------------
 # Entry point
 # -----------------------
 
-# Run the node main loop with asyncio.
 asyncio.run(node_main(initial_role))
 
