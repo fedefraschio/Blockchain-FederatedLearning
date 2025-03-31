@@ -223,10 +223,6 @@ class Manager:
         print_line("*")
         print('\n' * 2)
 
-        # Synchronization pause
-        # waiting_time=15
-        # print("Waiting time: " + str(waiting_time))
-        # time.sleep(waiting_time)
 
         print("Awaiting for collaborators to be ready for LEARNING phase")
         coroutine_learning = self.contract_events.listen("EveryCollaboratorHasCalledOnlyOnce", timeout=TIMEOUT_SECONDS)

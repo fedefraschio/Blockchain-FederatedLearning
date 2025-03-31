@@ -85,9 +85,6 @@ async def watch_for_role_transfer():
     await coroutine_transfer
     aggregator = FL_contract.get_aggregator({"from": hospitals[hospital_name].address})
 
-    ### THINGS TO DO: 
-    # - Problema con i ruoli?
-    # - I pesi vengono sovrascritti dai nuovi o si ripararte dai vecchi?
     personal_address = hospitals[hospital_name].address
     if FL_contract.isAggregator(personal_address, {"from": hospitals[hospital_name].address}):
         return "aggregator"
