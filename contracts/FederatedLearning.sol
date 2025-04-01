@@ -8,9 +8,8 @@ import "./chainlink/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract FederatedLearning is AccessControl {
-    //using SafeMathChainlink for uint256; // l'overflow e l'underflow aritmetico sono gestiti automaticamente
     // Define a constant role for the aggregator
-    bytes32 public constant AGGREGATOR_ROLE = keccak256("AGGREGATOR_ROLE"); // NEW
+    bytes32 public constant AGGREGATOR_ROLE = keccak256("AGGREGATOR_ROLE"); 
     
     // Enumeration of federated learning states
     enum FL_STATE {
@@ -26,7 +25,7 @@ contract FederatedLearning is AccessControl {
     address public aggregator;             // Address of the aggregator
     bytes public model;                    // Serialized model data
     bytes public compile_info;             // Metadata about the model
-    bytes public aggregated_weights;       // Aggregated weights after learning
+    bytes public aggregated_weights = hex"00000000";       // Aggregated weights after learning
 
     mapping(address => bytes) public weights;          // Stores individual collaborator weights
     uint256 public weights_len;                        // Count of submitted weights
@@ -50,12 +49,12 @@ contract FederatedLearning is AccessControl {
     event AggregatedWeightsReady();
     event RoundProceeded(); // NEW
     event TimeoutReported(address reporter); // NEW
-    event NewAggregatorElected(address aggregator); // NEW
+    event NewAggregatorElected(); // NEW
 
     // Constructor to initialize the contract
     constructor(uint256 _roundTimeout, uint256 _timeoutReportThreshold) {
         fl_state = FL_STATE.CLOSE; // Set initial state to CLOSE
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender); // Set admin role to th\e contract deployer
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender); // Set admin role to the contract deployer
         roundTimeout = _roundTimeout; // Set the round timeout duration
         timeoutReportThreshold = _timeoutReportThreshold; // Set the threshold for timeout reports
     }
@@ -81,7 +80,7 @@ contract FederatedLearning is AccessControl {
         hasCalledFunction[msg.sender][functionName] = true; // Mark the function as called for this collaborator
 
         everyoneHasCalled[functionName]++;
-        if (everyoneHasCalled[functionName] == collaborators.length) {
+        if (everyoneHasCalled[functionName] == (collaborators.length)-1) {
             emit EveryCollaboratorHasCalledOnlyOnce(functionName);
         }
 
@@ -114,7 +113,7 @@ contract FederatedLearning is AccessControl {
 
     // Open the system for collaborators
     function open() public onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(fl_state == FL_STATE.CLOSE);
+        require(fl_state == FL_STATE.CLOSE || fl_state == FL_STATE.OPEN);
         fl_state = FL_STATE.OPEN;
     }
 
@@ -125,19 +124,19 @@ contract FederatedLearning is AccessControl {
     }
 
     // Set the initial model
-    function send_model(bytes memory _model) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function send_model(bytes memory _model) public onlyAggregator() {
         require(fl_state == FL_STATE.OPEN);
         model = _model;
     }
 
     // Provide compilation metadata
-    function send_compile_info(bytes memory _compile_info) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function send_compile_info(bytes memory _compile_info) public onlyAggregator() {
         require(fl_state == FL_STATE.OPEN);
         compile_info = _compile_info;
     }
 
     // Transition to the START state
-    function start() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function start() public onlyAggregator() {
         require(fl_state == FL_STATE.OPEN);
         fl_state = FL_STATE.START;
         emit StartState();
@@ -150,7 +149,7 @@ contract FederatedLearning is AccessControl {
         everyCollaboratorHasCalledOnce("retrieve_model")
         returns (bytes memory)
     {
-        require(fl_state == FL_STATE.START);
+        require(fl_state == FL_STATE.START, "Not in START state");
         return model;
     }
 
@@ -161,7 +160,7 @@ contract FederatedLearning is AccessControl {
         everyCollaboratorHasCalledOnce("retrieve_compile_info")
         returns (bytes memory)
     {
-        require(fl_state == FL_STATE.START);
+        require(fl_state == FL_STATE.START, "Not in START state");
         return compile_info;
     }
 
@@ -176,9 +175,9 @@ contract FederatedLearning is AccessControl {
     function send_weights(
         bytes memory _weights
     ) public onlyAuthorized everyCollaboratorHasCalledOnce("send_weights") {
-        require(fl_state == FL_STATE.LEARNING);
+        require(fl_state == FL_STATE.LEARNING, "Not in LEARNING state");
         weights_len++;
-        require(weights_len <= collaborators.length);
+        require(weights_len <= collaborators.length); 
         weights[msg.sender] = _weights;
     }
 
@@ -186,7 +185,7 @@ contract FederatedLearning is AccessControl {
     function retrieve_weights(
         address _collaborator
     ) public view onlyAggregator returns (bytes memory) {
-        require(fl_state == FL_STATE.LEARNING);
+        require(fl_state == FL_STATE.LEARNING, "Not in LEARNING state");
         return weights[_collaborator];
     }
 
@@ -219,8 +218,30 @@ contract FederatedLearning is AccessControl {
         onlyAuthorized
         returns (bytes memory)
     {
-        require(fl_state == FL_STATE.LEARNING);
+        require(fl_state == FL_STATE.LEARNING, "Not in LEARNING state");
         return aggregated_weights;
+    }
+
+    // Function that returns the previously aggregated weigths during start time
+    function retrieve_initial_weights()
+        public
+        onlyAuthorized
+        everyCollaboratorHasCalledOnce("retrieve_initial_weights")
+        returns (bytes memory)
+    {
+        require(fl_state == FL_STATE.START, "Not in START state");
+        return aggregated_weights;
+    }
+
+    // Function to confirm that a certain collaborator is ready for learning phase
+    function ready_for_learning()
+        public
+        onlyAuthorized
+        everyCollaboratorHasCalledOnce("ready_for_learning")
+        returns (bool)
+    {
+        require(fl_state == FL_STATE.START, "Not in START state");
+        return true;
     }
 
     // Function to reset the aggregated weights for a new round
@@ -234,11 +255,55 @@ contract FederatedLearning is AccessControl {
         delete everyoneHasCalled["retrieve_aggregated_weights"];
     }
 
+    // Function to reset all state variables when closing the contract
+    function resetContractState() internal {
+        // Resetting call state for each collaborator
+        for (uint i = 0; i < collaborators.length; i++) {
+            hasCalledFunction[collaborators[i]]["retrieve_model"] = false;
+            hasCalledFunction[collaborators[i]]["send_weights"] = false;
+            hasCalledFunction[collaborators[i]]["aggregated_weights"] = false;
+            hasCalledFunction[collaborators[i]]["retrieve_compile_info"] = false;
+            hasCalledFunction[collaborators[i]]["retrieve_initial_weights"] = false;
+            hasCalledFunction[collaborators[i]]["ready_for_learning"] = false;
+            hasReportedTimeout[collaborators[i]] = false;
+        }
+
+        // Resetting call number
+        everyoneHasCalled["retrieve_model"] = 0;
+        everyoneHasCalled["send_weights"] = 0;
+        everyoneHasCalled["aggregated_weights"] = 0;
+        everyoneHasCalled["retrieve_compile_info"] = 0;
+        everyoneHasCalled["retrieve_initial_weights"] = 0;
+        everyoneHasCalled["ready_for_learning"] = 0;
+        timeoutReportCount = 0;
+
+        // Resetting state variables
+        model = "";
+        compile_info = "";
+        weights_len = 0;
+        roundStartTime = 0;
+        roundTimeout = 0;
+
+        // Deleting saved weigths
+        for (uint i = 0; i < collaborators.length; i++) {
+            delete weights[collaborators[i]];
+        }
+
+        // Resetting aggregator address
+        aggregator = address(0);
+
+        // Keeping CLOSE state
+        fl_state = FL_STATE.CLOSE;
+    }
+
+
     // Function to transition to the CLOSE state
     function close() public onlyRole(DEFAULT_ADMIN_ROLE) {
         fl_state = FL_STATE.CLOSE;
         emit CloseState();
+        resetContractState();
     }
+
 
     // Function to get the current state as a string
     function get_state() public view returns (string memory) {
@@ -249,7 +314,7 @@ contract FederatedLearning is AccessControl {
         return "No State";
     }
 
-     // Function to get the list of all collaborators
+    // Function to get the list of all collaborators
     function get_collaborators() public view returns (address[] memory) {
         return collaborators;
     }
@@ -313,19 +378,30 @@ contract FederatedLearning is AccessControl {
     }
 
     // Function to elect a new aggregator in a round-robin manner
-    function electNewAggregator() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function electNewAggregator() public onlyAggregator {
         require(fl_state == FL_STATE.CLOSE, "Can only elect a new aggregator when the state is CLOSE");
         require(collaborators.length > 0, "No collaborators available to elect as aggregator");
 
+        // Revoke previous aggregator role
+        if (aggregator != address(0)) {
+            revokeRole(AGGREGATOR_ROLE, aggregator);
+        }
+        
         // Round-robin selection logic
         aggregator = collaborators[lastElectedIndex];
+
+        // Grant the new aggregator the AGGREGATOR_ROLE
+        grantRole(AGGREGATOR_ROLE, aggregator);
 
         // Update the index to the next collaborator, wrapping around if necessary
         lastElectedIndex = (lastElectedIndex + 1) % collaborators.length;
 
-        emit NewAggregatorElected(aggregator);
+        emit NewAggregatorElected();
     }
 
-
+    // Function to get the new aggregator
+    function get_aggregator() public view returns (address) {
+        return aggregator;
+    }
 
 }
