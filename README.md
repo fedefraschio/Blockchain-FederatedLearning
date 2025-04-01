@@ -1,14 +1,23 @@
-# Federated Learning: Federated Proximal Implementation and Experiments on different simulations
-Project of Blockchain and cryptocurrencies, in this work it has been expanded the original project to the following link:https://github.com/AnaNSi-research/FederatedLearningBlockchain.
+# Federated Learning: Simulation of a Peer-2-Peer Federated Learning Architecture with Dynamic Role assignment
 
-Additional features implemented:
+Project for the course Blockchain and Cryptocurrencies, at the Alma Mater Studiorum - Università di Bologna. This project is an extension of the following project: https://github.com/LorenzoCassano/Blockchain-FederatedLearning
+
+## Additional features implemented
 <ul>
-<li>Implemented Federated Proximal [1]</li>
-<li>Insert the simulation of out of battery device (devices which do not send weights)</li>
-<li>Simulation of more devices (greater than 3)</li>
-<li>Adding a new dataset</li>
-<li>Make and analysis different experiments on both dataset</li>
+<li><b>Updated the Smart Contract</b>: 
+  <ul>
+    <li>Checking the access to the contract using AccessControl from OpenZeppelin,</li>
+    <li>Added functions for handling aggregator Failure (reportAggregatorFailure(), electNewAggregator(), reportTimeout()),</li>
+    <li>Added a function that resets the state of the contract when contract is closed (resetContractState())</li>   
+  </ul>
+ </li>
+<li><b>Parallelized the architecture</b>: the nodes of the architecture are executed on different terminals, to simulate a realistic FL architecture</li>
+<li><b>Dynamic role assignment</b>: each node can be independently assigned the role of collaborator or aggregator, depending on what's needed by the system</li>
+<li><b>Downloading previously aggregated weights if present</b>: when setting up the model, the collaborators always check if there are any previously aggregated weights on IPFS.</li>
 </ul>
+
+## Description of the simulation
+We have n nodes: n-1 collaborators and 1 aggregator. During each FL round, each collaborator instantiates the CNN model and starts training. After training for a certain number of epochs, the weights are sent to the aggregator which aggregates them and sends the aggregated weights back to the collaborators. At the end of the FL round the node which has been the aggregator passes the aggregator role to the next node on the list (Round-Robin).
 
 ## Setup
 This setup is just for a simulation
@@ -70,8 +79,16 @@ This is just a simulation. For concurruncy problems on training on the same GPU,
 different hospital model instances one at time in sequence. In a real time scenario, with more than one peer, it is possible to run 
 the different learnings at the same time and it works in the same way.
 
-### setup first time
-It is possible to choose the dataset, inserting the parameter, "brain_tumor" it will be used the brain tumor dataset, if the dataset is not sepcify it will be used the Alzheimer dataset
+### Settings of the simulation
+All the parameters of the simulation can be set in the file _constants.py_
+- Number of devices (nodes)
+- FL rounds
+- Number of epochs
+- ...
+
+### Step 1: Setup
+#### Setup first time
+It is possible to choose the dataset, inserting the parameter, "brain_tumor" it will be used the brain tumor dataset, if the dataset is not specified it will be used the Alzheimer dataset
 
 For **Brain Tumor**:
 
@@ -81,37 +98,41 @@ For **Alzheimer**
 
 `brownie run .\scripts\setup.py main --network fl-local` 
 
-#### setup after first time
+#### Setup after first time
 `brownie run .\scripts\setup.py --network fl-local`
 
 The number of devices is choosen by the constants
 
-### run collaborator
-`brownie run .\scripts\collaborator.py --network fl-local`
+### Step 2: run the collaborators
+Open n terminals, where n is the number of nodes of the simulation. In the first n-1 terminals, run the collaborators. Hospital names can be found in _hospital_split.json_.
 
-It is possible to insert the parameter _"out"_ to randomly select the option _"devices out of battery"_.
-The number of devices out of battery can be selected by the constants, instead the device out of battery and the round which they do not send the weights is randomly select.
-
-`brownie run .\scripts\collaborator.py out --network fl-local`
+`brownie run .\scripts\node.py [hospital-name] --network fl-local`
 
 **Notes**: In this configuration you need to wait 3600 s to validate if a device send the weights or not, it possible to change the time to wait, changing the constants TIMEOUT_SECONDS and TIMEOUT_DEVICES for simulation purpose.
 
-### run federated_learning
-#### another shell
-`brownie run .\scripts\manager.py --network fl-local`
+### Step 3: run the aggregator
+On the last open terminal, run the node that will start as aggregator.
+Of course, [hospital-name] can't be the name of an hospital already running as a collaborator.
 
-It is possible to use the parameter _FedProx_ to specify the using of Federated Prox technique.
-
-`brownie run .\scripts\manager.py FedProx --network fl-local`
-
-## Experiments Analysis
-In the repo, the notebook experiments_analysis contains all the analysis/plot of the different simulations.
+`brownie run .\scripts\node.py [hospital-name] aggregator --network fl-local `
 
 ## Authors
 <ul>
-<li>Lorenzo Cassano</li>
-<li>Jacopo D'Abramo</li>
+<li>Federico Faccioli</li>
+<li>Alessandro Tutone</li>
 </ul>
 
-## References
-[1]: Li, Tian, et al. "Federated optimization in heterogeneous networks." Proceedings of Machine learning and systems 2 (2020): 429-450.
+## Possible extensions:
+It's possible to test this model with some functionalities seen in the previous version (https://github.com/LorenzoCassano/Blockchain-FederatedLearning):
+<ul>
+<li>Implement Out of Battery mode</li>
+<li>Test functioning using FedProx</li>
+<li>Test functioning using brain tumor dataset</li>
+</ul>
+
+Also interesting additional features could be:
+<ul>
+<li>Handling unforeseen aggregator failure using reportTimeout() and reportAggregatorFailure()</li>
+
+</ul>
+
